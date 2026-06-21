@@ -4,7 +4,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const searchSchema = z.object({ mode: z.enum(["signin", "recover", "reset"]).optional() });
+const searchSchema = z.object({ mode: z.enum(["signin", "reset"]).optional() });
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -36,23 +36,19 @@ function AuthPage() {
           </div>
           <h1 className="mt-4 text-xl font-semibold">Painel Ley Colchões</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {effectiveMode === "signin" && "Acesso restrito · use seu e-mail corporativo"}
-            {effectiveMode === "recover" && "Informe seu e-mail para receber o link de redefinição"}
+            {effectiveMode === "signin" && "Acesso restrito · usuários são criados pela administração"}
             {effectiveMode === "reset" && "Defina sua nova senha de acesso"}
           </p>
         </div>
 
-        {effectiveMode === "signin" && <SignInForm onForgot={() => navigate({ to: "/auth", search: { mode: "recover" } })} />}
-        {effectiveMode === "recover" && <RecoverForm onBack={() => navigate({ to: "/auth", search: { mode: "signin" } })} />}
+        {effectiveMode === "signin" && <SignInForm />}
         {effectiveMode === "reset" && <ResetForm onDone={() => navigate({ to: "/" })} />}
-
-        <BootstrapButton />
       </div>
     </div>
   );
 }
 
-function SignInForm({ onForgot }: { onForgot: () => void }) {
+function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -94,39 +90,6 @@ function SignInForm({ onForgot }: { onForgot: () => void }) {
       <button type="submit" disabled={loading} className="btn-primary w-full">
         {loading ? "Entrando…" : "Entrar"}
       </button>
-      <button type="button" onClick={onForgot} className="block w-full text-center text-xs text-muted-foreground hover:text-foreground">
-        Esqueci minha senha
-      </button>
-    </form>
-  );
-}
-
-function RecoverForm({ onBack }: { onBack: () => void }) {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth?mode=reset`,
-    });
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success("Se o e-mail existir, enviaremos o link de redefinição.");
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-border-subtle bg-surface p-5">
-      <Field label="E-mail">
-        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" />
-      </Field>
-      <button type="submit" disabled={loading} className="btn-primary w-full">
-        {loading ? "Enviando…" : "Enviar link"}
-      </button>
-      <button type="button" onClick={onBack} className="block w-full text-center text-xs text-muted-foreground hover:text-foreground">
-        Voltar para o login
-      </button>
     </form>
   );
 }
@@ -157,33 +120,6 @@ function ResetForm({ onDone }: { onDone: () => void }) {
         {loading ? "Salvando…" : "Definir senha"}
       </button>
     </form>
-  );
-}
-
-function BootstrapButton() {
-  const [loading, setLoading] = useState(false);
-  async function bootstrap() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/public/bootstrap-admin", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) toast.error(json.error ?? "Falha no bootstrap");
-      else toast.success(json.message ?? "Administrador criado. Verifique o e-mail.");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
-  return (
-    <button
-      type="button"
-      onClick={bootstrap}
-      disabled={loading}
-      className="block w-full text-center text-[11px] text-muted-foreground/70 hover:text-muted-foreground"
-    >
-      {loading ? "Inicializando…" : "Primeira vez? Inicializar administrador Pedro Teles"}
-    </button>
   );
 }
 

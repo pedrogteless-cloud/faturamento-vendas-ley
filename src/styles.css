@@ -155,3 +155,55 @@
     font-feature-settings: "tnum";
   }
 }
+
+@layer components {
+  .input-field {
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-input);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-foreground);
+    outline: none;
+    transition: box-shadow 150ms;
+  }
+  .input-field:focus {
+    box-shadow: 0 0 0 2px var(--color-ring);
+  }
+  .input-field::placeholder {
+    color: var(--color-muted-foreground);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary);
+    color: var(--color-primary-foreground);
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: opacity 150ms;
+    cursor: pointer;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-md);
+    background-color: transparent;
+    color: var(--color-muted-foreground);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+  }
+  .btn-ghost:hover { color: var(--color-foreground); background-color: var(--color-accent); }
+}

@@ -118,13 +118,21 @@ export const setUserActive = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // Impede desativar o último admin
     if (!data.active) {
-      const { data: admins } = await supabaseAdmin
+      const { data: adminRoles } = await supabaseAdmin
         .from("user_roles")
-        .select("user_id, profiles!inner(is_active)")
+        .select("user_id")
         .eq("role", "admin");
-      const activeAdmins = (admins ?? []).filter((a: { user_id: string; profiles: { is_active: boolean } }) => a.profiles?.is_active);
-      if (activeAdmins.length <= 1 && activeAdmins.some((a) => a.user_id === data.userId)) {
-        throw new Error("Não é possível desativar o único administrador ativo.");
+      const adminIds = (adminRoles ?? []).map((a) => a.user_id as string);
+      if (adminIds.length > 0) {
+        const { data: activeProfiles } = await supabaseAdmin
+          .from("profiles")
+          .select("id")
+          .in("id", adminIds)
+          .eq("is_active", true);
+        const activeIds = (activeProfiles ?? []).map((p) => p.id as string);
+        if (activeIds.length <= 1 && activeIds.includes(data.userId)) {
+          throw new Error("Não é possível desativar o único administrador ativo.");
+        }
       }
     }
     const { error } = await supabaseAdmin.from("profiles").update({ is_active: data.active }).eq("id", data.userId);

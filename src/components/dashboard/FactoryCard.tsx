@@ -14,6 +14,7 @@ export type FactoryCardData = {
   salesGoalCents: number;
   workdaysElapsed: number;
   workdaysTotal: number;
+  calendarConfigured?: boolean;
   expectedBillingCents: number;
   expectedSalesCents: number;
   series: { date: string; billing: number; sales: number }[];
@@ -21,7 +22,9 @@ export type FactoryCardData = {
   workdayLabel?: string; // override para o consolidado
 };
 
-function statusFromRatio(actual: number, expected: number): "success" | "warning" | "danger" | "info" {
+type MetricStatus = "success" | "warning" | "danger" | "info";
+
+function statusFromRatio(actual: number, expected: number): MetricStatus {
   if (expected <= 0) return "info";
   const ratio = actual / expected;
   if (ratio >= 1) return "success";
@@ -29,14 +32,27 @@ function statusFromRatio(actual: number, expected: number): "success" | "warning
   return "danger";
 }
 
+function overallStatus(...statuses: MetricStatus[]): MetricStatus {
+  const active = statuses.filter((status) => status !== "info");
+  if (active.length === 0) return "info";
+  if (active.includes("danger")) return "danger";
+  if (active.includes("warning")) return "warning";
+  return "success";
+}
+
 export function FactoryCard(props: FactoryCardData) {
   const isConsolidated = props.variant === "consolidated";
-  const billingPct = props.billingGoalCents > 0 ? props.billingMonthCents / props.billingGoalCents : 0;
+  const billingPct =
+    props.billingGoalCents > 0 ? props.billingMonthCents / props.billingGoalCents : 0;
   const salesPct = props.salesGoalCents > 0 ? props.salesMonthCents / props.salesGoalCents : 0;
-  const billingExpectedPct = props.billingGoalCents > 0 ? props.expectedBillingCents / props.billingGoalCents : 0;
-  const salesExpectedPct = props.salesGoalCents > 0 ? props.expectedSalesCents / props.salesGoalCents : 0;
+  const billingExpectedPct =
+    props.billingGoalCents > 0 ? props.expectedBillingCents / props.billingGoalCents : 0;
+  const salesExpectedPct =
+    props.salesGoalCents > 0 ? props.expectedSalesCents / props.salesGoalCents : 0;
 
   const billingStatus = statusFromRatio(props.billingMonthCents, props.expectedBillingCents);
+  const salesStatus = statusFromRatio(props.salesMonthCents, props.expectedSalesCents);
+  const cardStatus = overallStatus(billingStatus, salesStatus);
   const remainingBilling = Math.max(0, props.billingGoalCents - props.billingMonthCents);
   const remainingSales = Math.max(0, props.salesGoalCents - props.salesMonthCents);
 
@@ -45,21 +61,21 @@ export function FactoryCard(props: FactoryCardData) {
     warning: "bg-warning/15 text-warning ring-1 ring-warning/30",
     danger: "bg-destructive/15 text-destructive ring-1 ring-destructive/30",
     info: "bg-primary/15 text-primary ring-1 ring-primary/30",
-  }[billingStatus];
+  }[cardStatus];
 
   const statusLabel = {
     success: "No prazo",
     warning: "Atenção",
     danger: "Abaixo",
     info: "Sem meta",
-  }[billingStatus];
+  }[cardStatus];
 
   const series = props.series.map((s) => ({ date: s.date, value: s.billing }));
 
   const workdayLabel =
     props.workdayLabel ??
     (props.workdaysTotal > 0
-      ? `${props.workdaysElapsed}º dia útil de ${props.workdaysTotal}`
+      ? `${props.workdaysElapsed}º dia útil de ${props.workdaysTotal}${props.calendarConfigured === false ? " · calendário sugerido" : ""}`
       : "Calendário não configurado");
 
   return (
@@ -84,21 +100,27 @@ export function FactoryCard(props: FactoryCardData) {
           </h3>
           <div className="mt-1 text-xs text-muted-foreground">{workdayLabel}</div>
         </div>
-        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", statusBadge)}>
+        <span
+          className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", statusBadge)}
+        >
           {statusLabel}
         </span>
       </header>
 
-      <section className="grid grid-cols-2 gap-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Faturamento hoje</div>
-          <div className="tabular mt-1 text-2xl font-semibold text-foreground">
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="min-w-0 rounded-xl bg-background/30 p-3 sm:bg-transparent sm:p-0">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Faturamento hoje
+          </div>
+          <div className="tabular mt-1 truncate text-xl font-semibold text-foreground sm:text-2xl">
             {centsToBRL(props.billingTodayCents)}
           </div>
         </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Vendas hoje</div>
-          <div className="tabular mt-1 text-2xl font-semibold text-foreground">
+        <div className="min-w-0 rounded-xl bg-background/30 p-3 sm:bg-transparent sm:p-0">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Vendas hoje
+          </div>
+          <div className="tabular mt-1 truncate text-xl font-semibold text-foreground sm:text-2xl">
             {centsToBRL(props.salesTodayCents)}
           </div>
         </div>
@@ -113,50 +135,72 @@ export function FactoryCard(props: FactoryCardData) {
         <div>
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted-foreground">Faturamento</span>
-            <span className="tabular text-sm font-semibold text-foreground">
-              {centsToBRL(props.billingMonthCents)}
-              <span className="ml-1 text-muted-foreground">
-                / {centsToBRL(props.billingGoalCents)}
+            {props.billingGoalCents > 0 ? (
+              <span className="tabular text-sm font-semibold text-foreground">
+                {centsToBRL(props.billingMonthCents)}
+                <span className="ml-1 text-muted-foreground">
+                  / {centsToBRL(props.billingGoalCents)}
+                </span>
               </span>
-            </span>
+            ) : (
+              <span className="text-[11px] font-medium text-warning">Meta não cadastrada</span>
+            )}
           </div>
-          <div className="mt-2">
-            <ProgressBar value={billingPct} expected={billingExpectedPct} variant={billingStatus} />
-          </div>
-          <div className="tabular mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>Restam {centsToBRL(remainingBilling)}</span>
-            <span className="font-medium text-foreground">{formatPct(billingPct)}</span>
-          </div>
+          {props.billingGoalCents > 0 && (
+            <>
+              <div className="mt-2">
+                <ProgressBar
+                  value={billingPct}
+                  expected={billingExpectedPct}
+                  variant={billingStatus}
+                  label={`Progresso da meta de faturamento de ${props.factoryName}`}
+                />
+              </div>
+              <div className="tabular mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Restam {centsToBRL(remainingBilling)}</span>
+                <span className="font-medium text-foreground">{formatPct(billingPct)}</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div>
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted-foreground">Vendas</span>
-            <span className="tabular text-sm font-semibold text-foreground">
-              {centsToBRL(props.salesMonthCents)}
-              <span className="ml-1 text-muted-foreground">
-                / {centsToBRL(props.salesGoalCents)}
+            {props.salesGoalCents > 0 ? (
+              <span className="tabular text-sm font-semibold text-foreground">
+                {centsToBRL(props.salesMonthCents)}
+                <span className="ml-1 text-muted-foreground">
+                  / {centsToBRL(props.salesGoalCents)}
+                </span>
               </span>
-            </span>
+            ) : (
+              <span className="text-[11px] font-medium text-warning">Meta não cadastrada</span>
+            )}
           </div>
-          <div className="mt-2">
-            <ProgressBar
-              value={salesPct}
-              expected={salesExpectedPct}
-              variant={statusFromRatio(props.salesMonthCents, props.expectedSalesCents)}
-            />
-          </div>
-          <div className="tabular mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>Restam {centsToBRL(remainingSales)}</span>
-            <span className="font-medium text-foreground">{formatPct(salesPct)}</span>
-          </div>
+          {props.salesGoalCents > 0 && (
+            <>
+              <div className="mt-2">
+                <ProgressBar
+                  value={salesPct}
+                  expected={salesExpectedPct}
+                  variant={salesStatus}
+                  label={`Progresso da meta de vendas de ${props.factoryName}`}
+                />
+              </div>
+              <div className="tabular mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Restam {centsToBRL(remainingSales)}</span>
+                <span className="font-medium text-foreground">{formatPct(salesPct)}</span>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
       <section>
         <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
           <span>Evolução do mês</span>
-          <span>Faturamento</span>
+          <span>Faturamento acumulado</span>
         </div>
         <Sparkline data={series} />
       </section>

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
 import { centsToCompact, formatDateBR } from "@/lib/format";
 
@@ -8,6 +9,7 @@ type SparklineProps = {
 };
 
 export function Sparkline({ data, color = "var(--color-primary)", height = 56 }: SparklineProps) {
+  const gradientId = useId().replace(/:/g, "");
   if (data.length === 0) {
     return (
       <div
@@ -24,7 +26,7 @@ export function Sparkline({ data, color = "var(--color-primary)", height = 56 }:
       <ResponsiveContainer>
         <AreaChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
           <defs>
-            <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={0.45} />
               <stop offset="100%" stopColor={color} stopOpacity={0} />
             </linearGradient>
@@ -48,7 +50,7 @@ export function Sparkline({ data, color = "var(--color-primary)", height = 56 }:
             dataKey="value"
             stroke={color}
             strokeWidth={2}
-            fill="url(#sparkFill)"
+            fill={`url(#${gradientId})`}
           />
         </AreaChart>
       </ResponsiveContainer>

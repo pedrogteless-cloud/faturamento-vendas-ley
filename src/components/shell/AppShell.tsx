@@ -11,9 +11,20 @@ import {
   ShieldCheck,
   LogOut,
   Menu,
+  MoreHorizontal,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import type { SessionContext } from "@/lib/permissions";
 import {
   canAccessAdmin,
@@ -42,7 +53,13 @@ const NAV: NavItem[] = [
     show: (s) => canRegisterSales(s) || canRegisterBilling(s),
     primary: true,
   },
-  { to: "/metas", label: "Metas", icon: Target, show: (s) => canManageGoals(s) || !!s, primary: true },
+  {
+    to: "/metas",
+    label: "Metas",
+    icon: Target,
+    show: (s) => canManageGoals(s) || !!s,
+    primary: true,
+  },
   {
     to: "/calendario",
     label: "Calendário",
@@ -58,20 +75,49 @@ const NAV: NavItem[] = [
 export function AppShell({ session }: { session: SessionContext | null }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [collapsed, setCollapsed] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState<string>(() => new Date().toISOString());
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
 
   useEffect(() => {
-    setUpdatedAt(new Date().toISOString());
-  }, [pathname]);
+    function handleDashboardStatus(event: Event) {
+      const detail = (event as CustomEvent<{ asOf?: string; connected?: boolean }>).detail;
+      if (detail.asOf) setUpdatedAt(detail.asOf);
+      if (typeof detail.connected === "boolean") setRealtimeConnected(detail.connected);
+    }
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => {
+      setOnline(false);
+      setRealtimeConnected(false);
+    };
+    window.addEventListener("ley:dashboard-status", handleDashboardStatus);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("ley:dashboard-status", handleDashboardStatus);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const visible = NAV.filter((n) => n.show(session));
-  const primaryMobile = visible.filter((n) => n.primary).slice(0, 5);
+  const primaryMobile = visible.filter((n) => n.primary).slice(0, 4);
+  const primaryMobilePaths = new Set(primaryMobile.map((item) => item.to));
+  const moreMobile = visible.filter((item) => !primaryMobilePaths.has(item.to));
+  const moreActive = moreMobile.some(
+    (item) => pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to)),
+  );
 
   const updatedLabel = new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Fortaleza",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(updatedAt));
+  }).format(new Date(updatedAt ?? Date.now()));
+
+  const connectionLabel = !online ? "Offline" : realtimeConnected ? "Tempo real" : "Sincronizando";
+  const ConnectionIcon = !online ? WifiOff : Wifi;
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -111,7 +157,8 @@ export function AppShell({ session }: { session: SessionContext | null }) {
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {visible.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            const active =
+              pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
             return (
               <Link
                 key={item.to}
@@ -159,16 +206,25 @@ export function AppShell({ session }: { session: SessionContext | null }) {
               Painel Ley Colchões
             </h1>
             <p className="truncate text-xs text-muted-foreground">
-              Atualizado às {updatedLabel} · America/Fortaleza
+              {updatedAt
+                ? `Dados atualizados às ${updatedLabel}`
+                : "Aguardando a primeira atualização"}{" "}
+              · Fortaleza
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-1 text-[11px] text-success ring-1 ring-success/30 sm:inline-flex">
-              <span className="relative inline-flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
-              </span>
-              Tempo real
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ring-1",
+                !online
+                  ? "bg-destructive/15 text-destructive ring-destructive/30"
+                  : realtimeConnected
+                    ? "bg-success/15 text-success ring-success/30"
+                    : "bg-warning/15 text-warning ring-warning/30",
+              )}
+            >
+              <ConnectionIcon className="h-3 w-3" />
+              <span className="hidden sm:inline">{connectionLabel}</span>
             </span>
           </div>
         </header>
@@ -197,6 +253,65 @@ export function AppShell({ session }: { session: SessionContext | null }) {
             </Link>
           );
         })}
+        <Sheet>
+          <SheetTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex flex-col items-center justify-center gap-0.5 py-2 text-[10px]",
+                moreActive ? "text-primary" : "text-muted-foreground",
+              )}
+              aria-label="Abrir mais opções"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+              <span>Mais</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent
+            side="bottom"
+            className="rounded-t-3xl border-border-subtle bg-surface pb-8"
+          >
+            <SheetHeader className="text-left">
+              <SheetTitle>Mais opções</SheetTitle>
+              {session && (
+                <p className="text-xs text-muted-foreground">
+                  {session.fullName} · {session.roles.map((role) => ROLE_LABEL[role]).join(" · ")}
+                </p>
+              )}
+            </SheetHeader>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              {moreMobile.map((item) => {
+                const Icon = item.icon;
+                const active =
+                  pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+                return (
+                  <SheetClose asChild key={item.to}>
+                    <Link
+                      to={item.to}
+                      className={cn(
+                        "flex min-h-16 items-center gap-3 rounded-xl border px-4 py-3 text-sm",
+                        active
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-border-subtle bg-background/40 text-muted-foreground",
+                      )}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SheetClose>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border-subtle px-4 py-3 text-sm text-muted-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair
+            </button>
+          </SheetContent>
+        </Sheet>
       </nav>
     </div>
   );

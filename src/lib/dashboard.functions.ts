@@ -14,6 +14,7 @@ export type FactorySummary = {
   salesGoalCents: number;
   workdaysElapsed: number;
   workdaysTotal: number;
+  calendarConfigured: boolean;
   expectedBillingCents: number;
   expectedSalesCents: number;
   series: { date: string; billing: number; sales: number }[];
@@ -63,33 +64,45 @@ export const getDashboard = createServerFn({ method: "GET" })
     const lastDay = new Date(y, m, 0).getDate();
     const monthEnd = `${y}-${pad(m)}-${pad(lastDay)}`;
 
-    const [factoriesRes, salesRes, billingRes, goalsRes, calendarRes, recentRes] = await Promise.all([
-      supabase.from("factories").select("id, code, name, state").order("name"),
-      supabase
-        .from("sales_entries")
-        .select("factory_id, reference_date, amount_cents")
-        .gte("reference_date", monthStart)
-        .lte("reference_date", monthEnd),
-      supabase
-        .from("billing_entries")
-        .select("factory_id, reference_date, amount_cents")
-        .gte("reference_date", monthStart)
-        .lte("reference_date", monthEnd),
-      supabase.from("goals").select("factory_id, billing_goal_cents, sales_goal_cents").eq("year", y).eq("month", m),
-      supabase
-        .from("work_calendar_days")
-        .select("factory_id, day, is_workday")
-        .gte("day", monthStart)
-        .lte("day", monthEnd),
-      supabase
-        .from("audit_logs")
-        .select("id, entity, action, actor_email, after, created_at")
-        .in("entity", ["sales_entries", "billing_entries", "goals", "work_calendar_days"])
-        .order("created_at", { ascending: false })
-        .limit(10),
-    ]);
+    const [factoriesRes, salesRes, billingRes, goalsRes, calendarRes, recentRes] =
+      await Promise.all([
+        supabase.from("factories").select("id, code, name, state").order("name"),
+        supabase
+          .from("sales_entries")
+          .select("factory_id, reference_date, amount_cents")
+          .gte("reference_date", monthStart)
+          .lte("reference_date", monthEnd),
+        supabase
+          .from("billing_entries")
+          .select("factory_id, reference_date, amount_cents")
+          .gte("reference_date", monthStart)
+          .lte("reference_date", monthEnd),
+        supabase
+          .from("goals")
+          .select("factory_id, billing_goal_cents, sales_goal_cents")
+          .eq("year", y)
+          .eq("month", m),
+        supabase
+          .from("work_calendar_days")
+          .select("factory_id, day, is_workday")
+          .gte("day", monthStart)
+          .lte("day", monthEnd),
+        supabase
+          .from("audit_logs")
+          .select("id, entity, action, actor_email, after, created_at")
+          .in("entity", ["sales_entries", "billing_entries", "goals", "work_calendar_days"])
+          .order("created_at", { ascending: false })
+          .limit(10),
+      ]);
 
-    if (factoriesRes.error) throw new Error(factoriesRes.error.message);
+    const queryError =
+      factoriesRes.error ??
+      salesRes.error ??
+      billingRes.error ??
+      goalsRes.error ??
+      calendarRes.error ??
+      recentRes.error;
+    if (queryError) throw new Error(queryError.message);
     const factories = factoriesRes.data ?? [];
 
     const salesByFactory = new Map<string, { date: string; cents: number }[]>();
@@ -118,7 +131,11 @@ export const getDashboard = createServerFn({ method: "GET" })
       calendarByFactory.set(c.factory_id as string, map);
     }
 
-    function workdaysFor(factoryId: string): { elapsed: number; total: number } {
+    function workdaysFor(factoryId: string): {
+      elapsed: number;
+      total: number;
+      configured: boolean;
+    } {
       const map = calendarByFactory.get(factoryId);
       // Fallback: seg-sex se calendário não configurado
       let elapsed = 0;
@@ -133,14 +150,14 @@ export const getDashboard = createServerFn({ method: "GET" })
           if (iso <= today) elapsed++;
         }
       }
-      return { elapsed, total };
+      return { elapsed, total, configured: !!map?.size };
     }
 
     const factorySummaries: FactorySummary[] = factories.map((f) => {
       const sales = salesByFactory.get(f.id) ?? [];
       const billing = billingByFactory.get(f.id) ?? [];
       const goals = goalsByFactory.get(f.id) ?? { b: 0, s: 0 };
-      const { elapsed, total } = workdaysFor(f.id);
+      const { elapsed, total, configured } = workdaysFor(f.id);
 
       const billingMonth = billing.reduce((acc, e) => acc + e.cents, 0);
       const salesMonth = sales.reduce((acc, e) => acc + e.cents, 0);
@@ -149,14 +166,19 @@ export const getDashboard = createServerFn({ method: "GET" })
 
       const ratio = total > 0 ? elapsed / total : 0;
 
-      // Série diária do mês (consolidando ambos)
+      // Série acumulada do mês. Assim o gráfico representa evolução real,
+      // em vez de oscilar apenas com o valor isolado de cada dia.
       const series: { date: string; billing: number; sales: number }[] = [];
+      let cumulativeBilling = 0;
+      let cumulativeSales = 0;
       for (let d = 1; d <= lastDay; d++) {
         const iso = `${y}-${pad(m)}-${pad(d)}`;
         if (iso > today) break;
         const b = billing.find((e) => e.date === iso)?.cents ?? 0;
         const s = sales.find((e) => e.date === iso)?.cents ?? 0;
-        if (b > 0 || s > 0) series.push({ date: iso, billing: b, sales: s });
+        cumulativeBilling += b;
+        cumulativeSales += s;
+        series.push({ date: iso, billing: cumulativeBilling, sales: cumulativeSales });
       }
 
       return {
@@ -172,6 +194,7 @@ export const getDashboard = createServerFn({ method: "GET" })
         salesGoalCents: goals.s,
         workdaysElapsed: elapsed,
         workdaysTotal: total,
+        calendarConfigured: configured,
         expectedBillingCents: Math.round(goals.b * ratio),
         expectedSalesCents: Math.round(goals.s * ratio),
         series,
@@ -211,10 +234,20 @@ export const getDashboard = createServerFn({ method: "GET" })
       const isWork = map?.has(today) ? map.get(today)! : defaultIsWorkday;
       if (!isWork) continue;
       const missing: ("sales" | "billing")[] = [];
-      if (f.salesTodayCents === 0) missing.push("sales");
-      if (f.billingTodayCents === 0) missing.push("billing");
+      const hasSalesEntry = (salesByFactory.get(f.factoryId) ?? []).some(
+        (entry) => entry.date === today,
+      );
+      const hasBillingEntry = (billingByFactory.get(f.factoryId) ?? []).some(
+        (entry) => entry.date === today,
+      );
+      if (!hasSalesEntry) missing.push("sales");
+      if (!hasBillingEntry) missing.push("billing");
       if (missing.length > 0) {
-        pendingToday.push({ factoryId: f.factoryId, factoryName: `${f.factoryName} · ${f.factoryState}`, missing });
+        pendingToday.push({
+          factoryId: f.factoryId,
+          factoryName: `${f.factoryName} · ${f.factoryState}`,
+          missing,
+        });
       }
     }
 
@@ -226,7 +259,7 @@ export const getDashboard = createServerFn({ method: "GET" })
         entity: r.entity as string,
         action: r.action as string,
         actor: (r.actor_email as string | null) ?? null,
-        factoryName: after.factory_id ? factoryNameById.get(after.factory_id) ?? null : null,
+        factoryName: after.factory_id ? (factoryNameById.get(after.factory_id) ?? null) : null,
         createdAt: r.created_at as string,
       };
     });

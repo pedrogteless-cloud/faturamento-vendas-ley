@@ -91,8 +91,10 @@ function GoalCard({
   canManage: boolean;
   onSave: (billingCents: number, salesCents: number) => void | Promise<void>;
 }) {
-  const [billing, setBilling] = useState(centsToBRL(billingCents).replace(/\D/g, (c) => c) );
-  const [sales, setSales] = useState(centsToBRL(salesCents).replace(/\D/g, (c) => c));
+  const [billing, setBilling] = useState(centsToBRLInput(billingCents));
+  const [sales, setSales] = useState(centsToBRLInput(salesCents));
+  useEffect(() => { setBilling(centsToBRLInput(billingCents)); }, [billingCents]);
+  useEffect(() => { setSales(centsToBRLInput(salesCents)); }, [salesCents]);
   void factoryId;
 
   return (

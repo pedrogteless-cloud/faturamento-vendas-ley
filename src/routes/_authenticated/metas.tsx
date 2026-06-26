@@ -124,6 +124,26 @@ function GoalCard({
   }, [salesCents]);
   void factoryId;
 
+  const billingParsed = brlInputToCents(billing);
+  const salesParsed = brlInputToCents(sales);
+
+  function handleSave() {
+    const threshold = 100_000_00; // R$ 100.000 em centavos
+    const shrunk =
+      (billingCents >= threshold && billingParsed < billingCents * 0.1) ||
+      (salesCents >= threshold && salesParsed < salesCents * 0.1);
+    if (shrunk) {
+      const ok = window.confirm(
+        `Atenção: o novo valor é muito menor que o atual.\n\n` +
+          `Faturamento: ${centsToBRL(billingCents)} → ${centsToBRL(billingParsed)}\n` +
+          `Vendas: ${centsToBRL(salesCents)} → ${centsToBRL(salesParsed)}\n\n` +
+          `Confirmar mesmo assim?`,
+      );
+      if (!ok) return;
+    }
+    void onSave(billingParsed, salesParsed);
+  }
+
   return (
     <section className="rounded-2xl border border-border-subtle bg-surface p-5">
       <h3 className="text-sm font-semibold">{factoryName}</h3>
@@ -138,7 +158,7 @@ function GoalCard({
             disabled={!canManage}
           />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Atual: {centsToBRL(billingCents)}
+            Atual: {centsToBRL(billingCents)} · Digitado: {centsToBRL(billingParsed)}
           </span>
         </Field>
         <Field label="Meta mensal de vendas (R$)">
@@ -151,15 +171,11 @@ function GoalCard({
             disabled={!canManage}
           />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Atual: {centsToBRL(salesCents)}
+            Atual: {centsToBRL(salesCents)} · Digitado: {centsToBRL(salesParsed)}
           </span>
         </Field>
         {canManage && (
-          <button
-            type="button"
-            className="btn-primary w-full"
-            onClick={() => onSave(brlInputToCents(billing), brlInputToCents(sales))}
-          >
+          <button type="button" className="btn-primary w-full" onClick={handleSave}>
             Salvar
           </button>
         )}

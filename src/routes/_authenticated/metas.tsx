@@ -140,16 +140,30 @@ function GoalCard({
   }, [salesCents]);
   void factoryId;
 
+  const billingParsed = brlInputToCents(billing);
+  const salesParsed = brlInputToCents(sales);
+
   async function handleSave() {
-    const b = brlInputToCents(billing);
-    const s = brlInputToCents(sales);
-    if (b < 0 || s < 0) {
+    if (billingParsed < 0 || salesParsed < 0) {
       toast.error("As metas não podem ser negativas.");
       return;
     }
+    const threshold = 100_000_00; // R$ 100.000 em centavos
+    const shrunk =
+      (billingCents >= threshold && billingParsed < billingCents * 0.1) ||
+      (salesCents >= threshold && salesParsed < salesCents * 0.1);
+    if (shrunk) {
+      const ok = window.confirm(
+        `Atenção: o novo valor é muito menor que o atual.\n\n` +
+          `Faturamento: ${centsToBRL(billingCents)} → ${centsToBRL(billingParsed)}\n` +
+          `Vendas: ${centsToBRL(salesCents)} → ${centsToBRL(salesParsed)}\n\n` +
+          `Confirmar mesmo assim?`,
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
-      await onSave(b, s);
+      await onSave(billingParsed, salesParsed);
     } finally {
       setSaving(false);
     }
@@ -169,7 +183,7 @@ function GoalCard({
             disabled={!canManage}
           />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Valor salvo: {centsToBRL(billingCents)}
+            Valor salvo: {centsToBRL(billingCents)} · Digitado: {centsToBRL(billingParsed)}
           </span>
         </Field>
         <Field label="Meta mensal de vendas (R$)">
@@ -182,7 +196,7 @@ function GoalCard({
             disabled={!canManage}
           />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Valor salvo: {centsToBRL(salesCents)}
+            Valor salvo: {centsToBRL(salesCents)} · Digitado: {centsToBRL(salesParsed)}
           </span>
         </Field>
         {canManage && (

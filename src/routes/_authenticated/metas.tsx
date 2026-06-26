@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { listFactories } from "@/lib/factories.functions";
 import { listGoals, upsertGoal } from "@/lib/goals.functions";
 import { getSessionContext } from "@/lib/session.functions";
-import { brlInputToCents, centsToBRL } from "@/lib/format";
+import { brlInputToCents, centsToBRL, centsToBRLInput } from "@/lib/format";
 import { canManageGoals } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/metas")({

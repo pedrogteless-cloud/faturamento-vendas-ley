@@ -1,6 +1,14 @@
 // Formatadores brasileiros — moeda, datas, percentuais.
 // Valores monetários sempre em centavos (BIGINT) — nunca usar float.
 
+export function getErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return "Falha de conexão. Verifique sua internet e tente novamente.";
+  }
+  return message;
+}
+
 export function centsToBRL(cents: number | null | undefined): string {
   const v = Number(cents ?? 0) / 100;
   return new Intl.NumberFormat("pt-BR", {

@@ -53,6 +53,8 @@ function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,10 +62,28 @@ function SignInForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      const invalidCredentials = /invalid login credentials/i.test(error.message);
+      toast.error(invalidCredentials ? "E-mail ou senha incorretos. Tente novamente." : error.message);
       return;
     }
     window.location.href = "/";
+  }
+
+  async function handleForgotPassword() {
+    if (!email) {
+      toast.error("Informe seu e-mail para receber o link de redefinição.");
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+    setResetLoading(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Se o e-mail existir, enviamos um link para redefinir a senha.");
   }
 
   return (
@@ -82,15 +102,34 @@ function SignInForm() {
         />
       </Field>
       <Field label="Senha">
-        <input
-          type="password"
-          required
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="input-field"
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="input-field pr-14"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute inset-y-0 right-0 px-3 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            {showPassword ? "Ocultar" : "Mostrar"}
+          </button>
+        </div>
       </Field>
+      <div className="text-right">
+        <button
+          type="button"
+          onClick={handleForgotPassword}
+          disabled={resetLoading}
+          className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {resetLoading ? "Enviando…" : "Esqueci minha senha"}
+        </button>
+      </div>
       <button type="submit" disabled={loading} className="btn-primary w-full">
         {loading ? "Entrando…" : "Entrar"}
       </button>

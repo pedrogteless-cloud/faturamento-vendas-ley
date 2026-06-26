@@ -13,7 +13,7 @@ import {
 import { listFactories } from "@/lib/factories.functions";
 import { getSessionContext } from "@/lib/session.functions";
 import { canAccessAdmin, ROLE_LABEL, type AppPermission, type AppRole } from "@/lib/permissions";
-import { formatDateTimeBR } from "@/lib/format";
+import { formatDateTimeBR, getErrorMessage } from "@/lib/format";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -88,7 +88,7 @@ function AdminPage() {
             toast.success("Usuário criado. Link de definição de senha enviado.");
             qc.invalidateQueries({ queryKey: ["admin-users"] });
           } catch (e) {
-            toast.error((e as Error).message);
+            toast.error(getErrorMessage(e));
           }
         }}
       />
@@ -118,7 +118,7 @@ function AdminPage() {
                     toast.success("Acesso atualizado.");
                     qc.invalidateQueries({ queryKey: ["admin-users"] });
                   } catch (e) {
-                    toast.error((e as Error).message);
+                    toast.error(getErrorMessage(e));
                   }
                 }}
                 onToggleActive={async (active) => {
@@ -127,7 +127,7 @@ function AdminPage() {
                     toast.success(active ? "Usuário ativado." : "Usuário desativado.");
                     qc.invalidateQueries({ queryKey: ["admin-users"] });
                   } catch (e) {
-                    toast.error((e as Error).message);
+                    toast.error(getErrorMessage(e));
                   }
                 }}
                 onResetPassword={async () => {
@@ -135,7 +135,7 @@ function AdminPage() {
                     await submitReset({ data: { email: u.email } });
                     toast.success("Link enviado.");
                   } catch (e) {
-                    toast.error((e as Error).message);
+                    toast.error(getErrorMessage(e));
                   }
                 }}
               />

@@ -7,6 +7,7 @@ import { FactoryCard, type FactoryCardData } from "@/components/dashboard/Factor
 import { getDashboard, type DashboardData } from "@/lib/dashboard.functions";
 import { centsToBRL, formatDateTimeBR, labelAction, labelEntity } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
+import { setDashboardStatus } from "@/lib/dashboard-status";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -34,7 +35,9 @@ function DashboardPage() {
 function DashboardContent() {
   const fetchDashboard = useServerFn(getDashboard);
   const queryClient = useQueryClient();
-  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "failed">(
+    "connecting",
+  );
   const { data, isFetching, refetch } = useSuspenseQuery({
     queryKey: ["dashboard"],
     queryFn: () => fetchDashboard(),
@@ -57,21 +60,26 @@ function DashboardContent() {
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       );
     }
+    const failTimeout = setTimeout(() => {
+      setRealtimeStatus((s) => (s === "connected" ? s : "failed"));
+    }, 10_000);
     channel.subscribe((status) => {
-      setRealtimeConnected(status === "SUBSCRIBED");
+      if (status === "SUBSCRIBED") {
+        clearTimeout(failTimeout);
+        setRealtimeStatus("connected");
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        setRealtimeStatus("failed");
+      }
     });
     return () => {
+      clearTimeout(failTimeout);
       void supabase.removeChannel(channel);
     };
   }, [queryClient]);
 
   useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent("ley:dashboard-status", {
-        detail: { asOf: data.asOf, connected: realtimeConnected },
-      }),
-    );
-  }, [data.asOf, realtimeConnected]);
+    setDashboardStatus({ asOf: data.asOf, realtime: realtimeStatus });
+  }, [data.asOf, realtimeStatus]);
 
   return <DashboardView data={data} isRefreshing={isFetching} onRefresh={() => void refetch()} />;
 }

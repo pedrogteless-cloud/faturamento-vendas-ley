@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { listFactories } from "@/lib/factories.functions";
 import { listEntries, upsertEntry } from "@/lib/entries.functions";
 import { getSessionContext } from "@/lib/session.functions";
-import { centsToBRL, formatDateBR, todayISO } from "@/lib/format";
+import { centsToBRL, formatDateBR, getErrorMessage, todayISO } from "@/lib/format";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/lancamentos")({
@@ -80,7 +80,7 @@ function EntriesPage() {
       qc.invalidateQueries({ queryKey: ["entries", type] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   return (
@@ -112,7 +112,9 @@ function EntriesPage() {
           <h2 className="mb-4 text-sm font-semibold">
             Novo lançamento de {type === "sales" ? "vendas" : "faturamento"}
           </h2>
-          {!canSubmit ? (
+          {sessionQuery.isLoading ? (
+            <div className="h-48 animate-pulse rounded-xl bg-muted/40" />
+          ) : !canSubmit ? (
             <p className="text-xs text-muted-foreground">
               Você não tem permissão para lançar {type === "sales" ? "vendas" : "faturamento"}.
             </p>
@@ -170,6 +172,7 @@ function EntriesPage() {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="opcional"
+                  maxLength={200}
                 />
               </Field>
               <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">

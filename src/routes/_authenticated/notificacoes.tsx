@@ -41,8 +41,8 @@ function NotificationsPage() {
       <header className="mb-4">
         <h1 className="text-xl font-semibold">Notificações</h1>
         <p className="text-xs text-muted-foreground">
-          Regras de envio pelo Telegram. Para ativar o envio real, configure o token (secret{" "}
-          <span className="font-mono">TELEGRAM_API_KEY</span>) e os destinatários.
+          Regras de envio pelo Telegram. Para ativar o envio real, solicite à equipe técnica a
+          configuração do bot e cadastre os destinatários.
         </p>
       </header>
 

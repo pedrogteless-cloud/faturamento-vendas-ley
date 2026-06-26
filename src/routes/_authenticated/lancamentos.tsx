@@ -6,13 +6,21 @@ import { toast } from "sonner";
 import { listFactories } from "@/lib/factories.functions";
 import { listEntries, upsertEntry } from "@/lib/entries.functions";
 import { getSessionContext } from "@/lib/session.functions";
-import { brlInputToCents, centsToBRL, formatDateBR, todayISO } from "@/lib/format";
+import { centsToBRL, formatDateBR, todayISO } from "@/lib/format";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/lancamentos")({
   head: () => ({ meta: [{ title: "Lançamentos — Ley Colchões" }] }),
   component: EntriesPage,
 });
+
+function formatAmountMask(cents: number): string {
+  if (!cents) return "";
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
 
 function EntriesPage() {
   const [type, setType] = useState<"sales" | "billing">("sales");
@@ -48,22 +56,26 @@ function EntriesPage() {
 
   const [factoryId, setFactoryId] = useState<string>("");
   const [date, setDate] = useState<string>(todayISO());
-  const [amount, setAmount] = useState<string>("");
+  const [amountCents, setAmountCents] = useState<number>(0);
   const [note, setNote] = useState<string>("");
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const cents = brlInputToCents(amount);
-      if (!Number.isFinite(cents) || cents < 0)
-        throw new Error("Informe um valor maior ou igual a zero.");
       if (!factoryId) throw new Error("Selecione a fábrica.");
+      if (date > todayISO()) throw new Error("A data do lançamento não pode ser no futuro.");
       return submitEntry({
-        data: { type, factoryId, referenceDate: date, amountCents: cents, note: note || null },
+        data: {
+          type,
+          factoryId,
+          referenceDate: date,
+          amountCents,
+          note: note || null,
+        },
       });
     },
     onSuccess: (res) => {
       toast.success(res.updated ? "Lançamento atualizado." : "Lançamento registrado.");
-      setAmount("");
+      setAmountCents(0);
       setNote("");
       qc.invalidateQueries({ queryKey: ["entries", type] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -132,6 +144,7 @@ function EntriesPage() {
                   type="date"
                   className="input-field"
                   value={date}
+                  max={todayISO()}
                   onChange={(e) => setDate(e.target.value)}
                   required
                 />
@@ -139,11 +152,14 @@ function EntriesPage() {
               <Field label="Valor (R$)">
                 <input
                   type="text"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   placeholder="0,00"
                   className="input-field tabular"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  value={formatAmountMask(amountCents)}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setAmountCents(digits ? parseInt(digits, 10) : 0);
+                  }}
                   required
                 />
               </Field>
@@ -156,13 +172,13 @@ function EntriesPage() {
                   placeholder="opcional"
                 />
               </Field>
-              <button type="submit" disabled={mutation.isPending} className="btn-primary w-full">
-                {mutation.isPending ? "Salvando…" : "Salvar"}
-              </button>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 Se já existir um lançamento para esta fábrica e data, ele será atualizado e
                 auditado.
               </p>
+              <button type="submit" disabled={mutation.isPending} className="btn-primary w-full">
+                {mutation.isPending ? "Salvando…" : "Salvar"}
+              </button>
             </form>
           )}
         </section>
@@ -191,7 +207,12 @@ function EntriesPage() {
                       <td className="px-5 py-2 text-right tabular font-medium">
                         {centsToBRL(Number(row.amount_cents))}
                       </td>
-                      <td className="px-5 py-2 text-muted-foreground">{row.note ?? "—"}</td>
+                      <td
+                        className="max-w-[220px] truncate px-5 py-2 text-muted-foreground"
+                        title={row.note ?? undefined}
+                      >
+                        {row.note ?? "—"}
+                      </td>
                     </tr>
                   );
                 })}

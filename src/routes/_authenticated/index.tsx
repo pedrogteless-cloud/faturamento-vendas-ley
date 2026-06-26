@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { FactoryCard, type FactoryCardData } from "@/components/dashboard/FactoryCard";
 import { getDashboard, type DashboardData } from "@/lib/dashboard.functions";
-import { centsToBRL, formatDateTimeBR } from "@/lib/format";
+import { centsToBRL, formatDateTimeBR, labelAction, labelEntity } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -113,7 +113,7 @@ function DashboardView({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Visão geral</h2>
-          <p className="text-xs capitalize text-muted-foreground">
+          <p className="text-xs text-muted-foreground first-letter:uppercase">
             {monthLabel} · atualizado em {formatDateTimeBR(data.asOf)}
           </p>
         </div>
@@ -285,20 +285,6 @@ function generateInsights(data: DashboardData): string[] {
   }
   if (out.length === 0) out.push("Tudo no ritmo esperado.");
   return out.slice(0, 4);
-}
-
-function labelEntity(e: string): string {
-  return (
-    {
-      sales_entries: "Vendas",
-      billing_entries: "Faturamento",
-      goals: "Meta",
-      work_calendar_days: "Calendário",
-    }[e] ?? e
-  );
-}
-function labelAction(a: string): string {
-  return { create: "novo", update: "alterado", delete: "removido" }[a] ?? a;
 }
 
 function DashboardSkeleton() {

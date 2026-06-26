@@ -14,6 +14,17 @@ import { listFactories } from "@/lib/factories.functions";
 import { getSessionContext } from "@/lib/session.functions";
 import { canAccessAdmin, ROLE_LABEL, type AppPermission, type AppRole } from "@/lib/permissions";
 import { formatDateTimeBR } from "@/lib/format";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Usuários — Ley Colchões" }] }),
@@ -177,6 +188,7 @@ function CreateUserCard({
           <input
             className="input-field"
             required
+            minLength={2}
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
           />
@@ -215,6 +227,9 @@ function CreateUserCard({
           <button type="submit" className="btn-primary">
             Criar e enviar link
           </button>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            O usuário receberá um e-mail para definir a própria senha de acesso.
+          </p>
         </div>
       </form>
     </section>
@@ -254,7 +269,9 @@ function UserRow({
         <td className="px-5 py-3 text-xs">
           {user.roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}
         </td>
-        <td className="px-5 py-3 text-xs">{user.permissions.join(", ") || "—"}</td>
+        <td className="px-5 py-3 text-xs">
+          {user.roles.includes("admin") ? "Todas (admin)" : user.permissions.join(", ") || "—"}
+        </td>
         <td className="px-5 py-3 text-xs">
           {user.factoryIds
             .map((id) => factories.find((f) => f.id === id)?.name)
@@ -279,9 +296,30 @@ function UserRow({
             <button className="btn-ghost" onClick={onResetPassword}>
               Reenviar senha
             </button>
-            <button className="btn-ghost" onClick={() => onToggleActive(!user.is_active)}>
-              {user.is_active ? "Desativar" : "Ativar"}
-            </button>
+            {user.is_active ? (
+              <AlertDialog>
+                <AlertDialogTrigger className="btn-ghost">Desativar</AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Desativar {user.full_name}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      O usuário perderá acesso imediato ao sistema. Você pode reativá-lo depois, se
+                      necessário.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => onToggleActive(false)}>
+                      Desativar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <button className="btn-ghost" onClick={() => onToggleActive(true)}>
+                Ativar
+              </button>
+            )}
           </div>
         </td>
       </tr>

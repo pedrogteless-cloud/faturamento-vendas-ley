@@ -8,6 +8,17 @@ import { getSessionContext } from "@/lib/session.functions";
 import { generateDefaultMonth, listCalendar, setCalendarDay } from "@/lib/calendar.functions";
 import { canManageCalendar } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/calendario")({
   head: () => ({ meta: [{ title: "Calendário — Ley Colchões" }] }),
@@ -116,21 +127,45 @@ function CalendarPage() {
           <span className="font-semibold text-foreground tabular">{total}</span>
         </span>
         {canManage && (
-          <button
-            className="btn-ghost"
-            onClick={async () => {
-              try {
-                await genMonth({ data: { factoryId: currentFactory, year, month } });
-                qc.invalidateQueries({ queryKey: ["calendar", currentFactory, year, month] });
-                toast.success("Configuração padrão gerada (segunda a sexta).");
-              } catch (e) {
-                toast.error((e as Error).message);
-              }
-            }}
-          >
-            Gerar padrão seg–sex
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger className="btn-ghost">Gerar padrão seg–sex</AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Gerar configuração padrão?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Isso vai marcar todos os dias de segunda a sexta deste mês como dia útil, e
+                  sábados/domingos como não úteis — sobrescrevendo qualquer ajuste manual já feito
+                  neste período.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    try {
+                      await genMonth({ data: { factoryId: currentFactory, year, month } });
+                      qc.invalidateQueries({ queryKey: ["calendar", currentFactory, year, month] });
+                      toast.success("Configuração padrão gerada (segunda a sexta).");
+                    } catch (e) {
+                      toast.error((e as Error).message);
+                    }
+                  }}
+                >
+                  Gerar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
+      </div>
+
+      <div className="mb-3 flex items-center gap-4 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded bg-primary/20" /> Dia útil
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded bg-muted/30" /> Não útil
+        </span>
       </div>
 
       <div className="grid grid-cols-7 gap-2 rounded-2xl border border-border-subtle bg-surface p-4">
@@ -150,6 +185,7 @@ function CalendarPage() {
         )}
         {days.map((d) => {
           const work = isWorkday(d);
+          const isPendingThis = toggle.isPending && toggle.variables === d;
           return (
             <button
               key={d}
@@ -161,6 +197,7 @@ function CalendarPage() {
                   ? "bg-primary/20 text-foreground hover:bg-primary/30"
                   : "bg-muted/30 text-muted-foreground hover:bg-muted/50",
                 !canManage && "cursor-default",
+                isPendingThis && "opacity-50",
               )}
             >
               {d}

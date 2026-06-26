@@ -45,6 +45,11 @@ function HistoryPage() {
         </button>
       </div>
 
+      <p className="mb-2 text-xs text-muted-foreground">
+        {entriesQuery.data?.length ?? 0} registro(s)
+        {entriesQuery.data?.length === 200 && " · mostrando os 200 mais recentes"}
+      </p>
+
       <section className="overflow-x-auto rounded-2xl border border-border-subtle bg-surface">
         <table className="w-full text-sm">
           <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">

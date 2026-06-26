@@ -102,6 +102,24 @@ export function todayISO(): string {
   return fmt.format(new Date());
 }
 
+export function labelEntity(entity: string): string {
+  return (
+    {
+      sales_entries: "Vendas",
+      billing_entries: "Faturamento",
+      goals: "Meta",
+      work_calendar_days: "Calendário",
+      user_roles: "Função de usuário",
+      user_permissions: "Permissão de usuário",
+      user_factory_access: "Acesso a fábrica",
+    }[entity] ?? entity
+  );
+}
+
+export function labelAction(action: string): string {
+  return { create: "Criado", update: "Atualizado", delete: "Removido" }[action] ?? action;
+}
+
 export function monthRange(year: number, month: number): { start: string; end: string } {
   const pad = (n: number) => String(n).padStart(2, "0");
   const start = `${year}-${pad(month)}-01`;

@@ -32,6 +32,7 @@ function GoalsPage() {
   });
 
   const canManage = canManageGoals(sessionQuery.data ?? null);
+  const isLoading = factoriesQuery.isLoading || goalsQuery.isLoading;
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
@@ -68,33 +69,47 @@ function GoalsPage() {
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {(factoriesQuery.data ?? []).map((f) => {
-          const existing = (goalsQuery.data ?? []).find((g) => g.factory_id === f.id);
-          return (
-            <GoalCard
-              key={f.id}
-              factoryName={`${f.name} · ${f.state}`}
-              factoryId={f.id}
-              billingCents={Number(existing?.billing_goal_cents ?? 0)}
-              salesCents={Number(existing?.sales_goal_cents ?? 0)}
-              canManage={canManage}
-              onSave={async (b, s) => {
-                try {
-                  await saveGoal({
-                    data: { factoryId: f.id, year, month, billingGoalCents: b, salesGoalCents: s },
-                  });
-                  toast.success("Meta salva.");
-                  qc.invalidateQueries({ queryKey: ["goals", year, month] });
-                  qc.invalidateQueries({ queryKey: ["dashboard"] });
-                } catch (e) {
-                  toast.error((e as Error).message);
-                }
-              }}
-            />
-          );
-        })}
-      </div>
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-56 animate-pulse rounded-2xl bg-surface" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {(factoriesQuery.data ?? []).map((f) => {
+            const existing = (goalsQuery.data ?? []).find((g) => g.factory_id === f.id);
+            return (
+              <GoalCard
+                key={f.id}
+                factoryName={`${f.name} · ${f.state}`}
+                factoryId={f.id}
+                billingCents={Number(existing?.billing_goal_cents ?? 0)}
+                salesCents={Number(existing?.sales_goal_cents ?? 0)}
+                canManage={canManage}
+                onSave={async (b, s) => {
+                  try {
+                    await saveGoal({
+                      data: {
+                        factoryId: f.id,
+                        year,
+                        month,
+                        billingGoalCents: b,
+                        salesGoalCents: s,
+                      },
+                    });
+                    toast.success("Meta salva.");
+                    qc.invalidateQueries({ queryKey: ["goals", year, month] });
+                    qc.invalidateQueries({ queryKey: ["dashboard"] });
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  }
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -116,6 +131,7 @@ function GoalCard({
 }) {
   const [billing, setBilling] = useState(centsToBRLInput(billingCents));
   const [sales, setSales] = useState(centsToBRLInput(salesCents));
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     setBilling(centsToBRLInput(billingCents));
   }, [billingCents]);
@@ -123,6 +139,21 @@ function GoalCard({
     setSales(centsToBRLInput(salesCents));
   }, [salesCents]);
   void factoryId;
+
+  async function handleSave() {
+    const b = brlInputToCents(billing);
+    const s = brlInputToCents(sales);
+    if (b < 0 || s < 0) {
+      toast.error("As metas não podem ser negativas.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(b, s);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section className="rounded-2xl border border-border-subtle bg-surface p-5">
@@ -138,7 +169,7 @@ function GoalCard({
             disabled={!canManage}
           />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Atual: {centsToBRL(billingCents)}
+            Valor salvo: {centsToBRL(billingCents)}
           </span>
         </Field>
         <Field label="Meta mensal de vendas (R$)">
@@ -151,16 +182,17 @@ function GoalCard({
             disabled={!canManage}
           />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Atual: {centsToBRL(salesCents)}
+            Valor salvo: {centsToBRL(salesCents)}
           </span>
         </Field>
         {canManage && (
           <button
             type="button"
             className="btn-primary w-full"
-            onClick={() => onSave(brlInputToCents(billing), brlInputToCents(sales))}
+            disabled={saving}
+            onClick={handleSave}
           >
-            Salvar
+            {saving ? "Salvando…" : "Salvar"}
           </button>
         )}
       </div>

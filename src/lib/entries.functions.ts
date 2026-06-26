@@ -1,11 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { todayISO } from "@/lib/format";
 
 const upsertSchema = z.object({
   type: z.enum(["sales", "billing"]),
   factoryId: z.string().uuid(),
-  referenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  referenceDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((v) => v <= todayISO(), {
+      message: "A data do lançamento não pode ser no futuro.",
+    }),
   amountCents: z.number().int().min(0).max(1_000_000_000_00),
   note: z.string().max(500).optional().nullable(),
   reason: z.string().max(500).optional().nullable(),

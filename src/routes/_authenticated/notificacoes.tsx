@@ -12,7 +12,11 @@ const listRules = createServerFn({ method: "GET" })
     const [rules, dests, logs] = await Promise.all([
       context.supabase.from("notification_rules").select("*").order("name"),
       context.supabase.from("notification_destinations").select("*").order("name"),
-      context.supabase.from("notification_delivery_logs").select("*").order("attempted_at", { ascending: false }).limit(50),
+      context.supabase
+        .from("notification_delivery_logs")
+        .select("*")
+        .order("attempted_at", { ascending: false })
+        .limit(50),
     ]);
     return {
       rules: rules.data ?? [],
@@ -37,30 +41,47 @@ function NotificationsPage() {
       <header className="mb-4">
         <h1 className="text-xl font-semibold">Notificações</h1>
         <p className="text-xs text-muted-foreground">
-          Regras de envio pelo Telegram. Para ativar o envio real, configure o token (secret <span className="font-mono">TELEGRAM_API_KEY</span>) e os destinatários.
+          Regras de envio pelo Telegram. Para ativar o envio real, solicite à equipe técnica a
+          configuração do bot e cadastre os destinatários.
         </p>
       </header>
 
       <div className="mb-4 inline-flex rounded-xl border border-border-subtle bg-surface p-1 text-sm">
-        <button onClick={() => setTab("rules")} className={`rounded-lg px-3 py-1.5 ${tab === "rules" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Regras</button>
-        <button onClick={() => setTab("history")} className={`rounded-lg px-3 py-1.5 ${tab === "history" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Histórico</button>
+        <button
+          onClick={() => setTab("rules")}
+          className={`rounded-lg px-3 py-1.5 ${tab === "rules" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+        >
+          Regras
+        </button>
+        <button
+          onClick={() => setTab("history")}
+          className={`rounded-lg px-3 py-1.5 ${tab === "history" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+        >
+          Histórico
+        </button>
       </div>
 
       {tab === "rules" ? (
         <div className="grid gap-3 md:grid-cols-2">
           {data.rules.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border-subtle bg-surface p-6 text-sm text-muted-foreground md:col-span-2">
-              Nenhuma regra cadastrada. As regras serão criadas após a configuração do token do Telegram.
+              Nenhuma regra cadastrada. As regras serão criadas após a configuração do token do
+              Telegram.
             </div>
           ) : (
             data.rules.map((r) => (
-              <article key={r.id} className="rounded-2xl border border-border-subtle bg-surface p-5">
+              <article
+                key={r.id}
+                className="rounded-2xl border border-border-subtle bg-surface p-5"
+              >
                 <header className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="truncate text-sm font-semibold">{r.name}</h3>
                     <p className="truncate text-xs text-muted-foreground">{r.description ?? "—"}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${r.is_active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${r.is_active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}
+                  >
                     {r.is_active ? "Ativa" : "Pausada"}
                   </span>
                 </header>
@@ -86,14 +107,20 @@ function NotificationsPage() {
             </thead>
             <tbody>
               {data.logs.length === 0 ? (
-                <tr><td colSpan={3} className="px-5 py-8 text-center text-xs text-muted-foreground">Sem envios registrados.</td></tr>
-              ) : data.logs.map((l) => (
-                <tr key={l.id} className="border-t border-border-subtle/40">
-                  <td className="px-5 py-2 tabular">{formatDateTimeBR(l.attempted_at)}</td>
-                  <td className="px-5 py-2">{l.status}</td>
-                  <td className="px-5 py-2 text-muted-foreground">{l.error ?? "—"}</td>
+                <tr>
+                  <td colSpan={3} className="px-5 py-8 text-center text-xs text-muted-foreground">
+                    Sem envios registrados.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                data.logs.map((l) => (
+                  <tr key={l.id} className="border-t border-border-subtle/40">
+                    <td className="px-5 py-2 tabular">{formatDateTimeBR(l.attempted_at)}</td>
+                    <td className="px-5 py-2">{l.status}</td>
+                    <td className="px-5 py-2 text-muted-foreground">{l.error ?? "—"}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </section>

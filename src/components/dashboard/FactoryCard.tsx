@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { centsToBRL, formatPct } from "@/lib/format";
 import { ProgressBar } from "./ProgressBar";
@@ -70,6 +71,13 @@ export function FactoryCard(props: FactoryCardData) {
     info: "Sem meta",
   }[cardStatus];
 
+  const statusTitle = {
+    success: "Realizado no mês em linha ou acima do esperado para os dias úteis decorridos.",
+    warning: "Realizado no mês entre 90% e 100% do esperado para os dias úteis decorridos.",
+    danger: "Realizado no mês abaixo de 90% do esperado para os dias úteis decorridos.",
+    info: "Cadastre uma meta mensal para acompanhar o ritmo esperado.",
+  }[cardStatus];
+
   const series = props.series.map((s) => ({ date: s.date, value: s.billing }));
 
   const workdayLabel =
@@ -101,6 +109,7 @@ export function FactoryCard(props: FactoryCardData) {
           <div className="mt-1 text-xs text-muted-foreground">{workdayLabel}</div>
         </div>
         <span
+          title={statusTitle}
           className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", statusBadge)}
         >
           {statusLabel}
@@ -127,10 +136,7 @@ export function FactoryCard(props: FactoryCardData) {
       </section>
 
       <section className="space-y-4 rounded-xl bg-background/40 p-4">
-        <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
-          <span>Mês</span>
-          <span>{workdayLabel}</span>
-        </div>
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Mês</div>
 
         <div>
           <div className="flex items-baseline justify-between">
@@ -143,7 +149,12 @@ export function FactoryCard(props: FactoryCardData) {
                 </span>
               </span>
             ) : (
-              <span className="text-[11px] font-medium text-warning">Meta não cadastrada</span>
+              <Link
+                to="/metas"
+                className="text-[11px] font-medium text-warning underline-offset-2 hover:underline"
+              >
+                Meta não cadastrada
+              </Link>
             )}
           </div>
           {props.billingGoalCents > 0 && (
@@ -175,7 +186,12 @@ export function FactoryCard(props: FactoryCardData) {
                 </span>
               </span>
             ) : (
-              <span className="text-[11px] font-medium text-warning">Meta não cadastrada</span>
+              <Link
+                to="/metas"
+                className="text-[11px] font-medium text-warning underline-offset-2 hover:underline"
+              >
+                Meta não cadastrada
+              </Link>
             )}
           </div>
           {props.salesGoalCents > 0 && (

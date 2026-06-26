@@ -86,14 +86,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "Painel Ley Colchões" },
       { name: "twitter:description", content: "Painel executivo de vendas e faturamento." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8b96c441-5473-4fea-b5d8-75b190c2520d/id-preview-c3b7d0d7--d3484278-4881-4728-b1f5-c83890c68ddc.lovable.app-1782016139084.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8b96c441-5473-4fea-b5d8-75b190c2520d/id-preview-c3b7d0d7--d3484278-4881-4728-b1f5-c83890c68ddc.lovable.app-1782016139084.png" },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8b96c441-5473-4fea-b5d8-75b190c2520d/id-preview-c3b7d0d7--d3484278-4881-4728-b1f5-c83890c68ddc.lovable.app-1782016139084.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8b96c441-5473-4fea-b5d8-75b190c2520d/id-preview-c3b7d0d7--d3484278-4881-4728-b1f5-c83890c68ddc.lovable.app-1782016139084.png",
+      },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+      },
       { rel: "stylesheet", href: appCss },
     ],
   }),

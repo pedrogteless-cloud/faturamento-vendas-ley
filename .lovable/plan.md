@@ -1,6 +1,7 @@
 ## Diagnóstico
 
 Banco hoje (junho/2026):
+
 - Eusébio · faturamento: **R$ 5.000.000,00** (500.000.000 centavos)
 - Timon · faturamento: **R$ 2,50** (250 centavos)
 

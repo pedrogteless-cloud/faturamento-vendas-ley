@@ -32,57 +32,95 @@ function GoalsPage() {
   });
 
   const canManage = canManageGoals(sessionQuery.data ?? null);
+  const isLoading = factoriesQuery.isLoading || goalsQuery.isLoading;
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold">Metas mensais</h1>
-          <p className="text-xs text-muted-foreground">Defina meta de faturamento e meta de vendas para cada fábrica.</p>
+          <p className="text-xs text-muted-foreground">
+            Defina meta de faturamento e meta de vendas para cada fábrica.
+          </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <select className="input-field !w-auto" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+          <select
+            className="input-field !w-auto"
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+          >
             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+              <option key={m} value={m}>
+                {String(m).padStart(2, "0")}
+              </option>
             ))}
           </select>
-          <select className="input-field !w-auto" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-            {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+          <select
+            className="input-field !w-auto"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+          >
+            {[year - 1, year, year + 1].map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
           </select>
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {(factoriesQuery.data ?? []).map((f) => {
-          const existing = (goalsQuery.data ?? []).find((g) => g.factory_id === f.id);
-          return (
-            <GoalCard
-              key={f.id}
-              factoryName={`${f.name} · ${f.state}`}
-              factoryId={f.id}
-              billingCents={Number(existing?.billing_goal_cents ?? 0)}
-              salesCents={Number(existing?.sales_goal_cents ?? 0)}
-              canManage={canManage}
-              onSave={async (b, s) => {
-                try {
-                  await saveGoal({ data: { factoryId: f.id, year, month, billingGoalCents: b, salesGoalCents: s } });
-                  toast.success("Meta salva.");
-                  qc.invalidateQueries({ queryKey: ["goals", year, month] });
-                  qc.invalidateQueries({ queryKey: ["dashboard"] });
-                } catch (e) {
-                  toast.error((e as Error).message);
-                }
-              }}
-            />
-          );
-        })}
-      </div>
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-56 animate-pulse rounded-2xl bg-surface" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {(factoriesQuery.data ?? []).map((f) => {
+            const existing = (goalsQuery.data ?? []).find((g) => g.factory_id === f.id);
+            return (
+              <GoalCard
+                key={f.id}
+                factoryName={`${f.name} · ${f.state}`}
+                factoryId={f.id}
+                billingCents={Number(existing?.billing_goal_cents ?? 0)}
+                salesCents={Number(existing?.sales_goal_cents ?? 0)}
+                canManage={canManage}
+                onSave={async (b, s) => {
+                  try {
+                    await saveGoal({
+                      data: {
+                        factoryId: f.id,
+                        year,
+                        month,
+                        billingGoalCents: b,
+                        salesGoalCents: s,
+                      },
+                    });
+                    toast.success("Meta salva.");
+                    qc.invalidateQueries({ queryKey: ["goals", year, month] });
+                    qc.invalidateQueries({ queryKey: ["dashboard"] });
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  }
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function GoalCard({
-  factoryName, factoryId, billingCents, salesCents, canManage, onSave,
+  factoryName,
+  factoryId,
+  billingCents,
+  salesCents,
+  canManage,
+  onSave,
 }: {
   factoryName: string;
   factoryId: string;
@@ -93,14 +131,23 @@ function GoalCard({
 }) {
   const [billing, setBilling] = useState(centsToBRLInput(billingCents));
   const [sales, setSales] = useState(centsToBRLInput(salesCents));
-  useEffect(() => { setBilling(centsToBRLInput(billingCents)); }, [billingCents]);
-  useEffect(() => { setSales(centsToBRLInput(salesCents)); }, [salesCents]);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setBilling(centsToBRLInput(billingCents));
+  }, [billingCents]);
+  useEffect(() => {
+    setSales(centsToBRLInput(salesCents));
+  }, [salesCents]);
   void factoryId;
 
   const billingParsed = brlInputToCents(billing);
   const salesParsed = brlInputToCents(sales);
 
-  function handleSave() {
+  async function handleSave() {
+    if (billingParsed < 0 || salesParsed < 0) {
+      toast.error("As metas não podem ser negativas.");
+      return;
+    }
     const threshold = 100_000_00; // R$ 100.000 em centavos
     const shrunk =
       (billingCents >= threshold && billingParsed < billingCents * 0.1) ||
@@ -108,13 +155,18 @@ function GoalCard({
     if (shrunk) {
       const ok = window.confirm(
         `Atenção: o novo valor é muito menor que o atual.\n\n` +
-        `Faturamento: ${centsToBRL(billingCents)} → ${centsToBRL(billingParsed)}\n` +
-        `Vendas: ${centsToBRL(salesCents)} → ${centsToBRL(salesParsed)}\n\n` +
-        `Confirmar mesmo assim?`,
+          `Faturamento: ${centsToBRL(billingCents)} → ${centsToBRL(billingParsed)}\n` +
+          `Vendas: ${centsToBRL(salesCents)} → ${centsToBRL(salesParsed)}\n\n` +
+          `Confirmar mesmo assim?`,
       );
       if (!ok) return;
     }
-    void onSave(billingParsed, salesParsed);
+    setSaving(true);
+    try {
+      await onSave(billingParsed, salesParsed);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -122,27 +174,45 @@ function GoalCard({
       <h3 className="text-sm font-semibold">{factoryName}</h3>
       <div className="mt-4 space-y-3">
         <Field label="Meta mensal de faturamento (R$)">
-          <input type="text" inputMode="decimal" className="input-field tabular" value={billing} onChange={(e) => setBilling(e.target.value)} disabled={!canManage} />
+          <input
+            type="text"
+            inputMode="decimal"
+            className="input-field tabular"
+            value={billing}
+            onChange={(e) => setBilling(e.target.value)}
+            disabled={!canManage}
+          />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Atual: {centsToBRL(billingCents)} · Digitado: {centsToBRL(billingParsed)}
+            Valor salvo: {centsToBRL(billingCents)} · Digitado: {centsToBRL(billingParsed)}
           </span>
         </Field>
         <Field label="Meta mensal de vendas (R$)">
-          <input type="text" inputMode="decimal" className="input-field tabular" value={sales} onChange={(e) => setSales(e.target.value)} disabled={!canManage} />
+          <input
+            type="text"
+            inputMode="decimal"
+            className="input-field tabular"
+            value={sales}
+            onChange={(e) => setSales(e.target.value)}
+            disabled={!canManage}
+          />
           <span className="block pt-1 text-[11px] text-muted-foreground">
-            Atual: {centsToBRL(salesCents)} · Digitado: {centsToBRL(salesParsed)}
+            Valor salvo: {centsToBRL(salesCents)} · Digitado: {centsToBRL(salesParsed)}
           </span>
         </Field>
         {canManage && (
-          <button type="button" className="btn-primary w-full" onClick={handleSave}>
-            Salvar
+          <button
+            type="button"
+            className="btn-primary w-full"
+            disabled={saving}
+            onClick={handleSave}
+          >
+            {saving ? "Salvando…" : "Salvar"}
           </button>
         )}
       </div>
     </section>
   );
 }
-
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

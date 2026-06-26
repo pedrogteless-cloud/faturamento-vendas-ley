@@ -4,7 +4,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const listGoals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ year: z.number().int(), month: z.number().int().min(1).max(12) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({ year: z.number().int(), month: z.number().int().min(1).max(12) }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("goals")
@@ -18,13 +20,15 @@ export const listGoals = createServerFn({ method: "GET" })
 export const upsertGoal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({
-      factoryId: z.string().uuid(),
-      year: z.number().int(),
-      month: z.number().int().min(1).max(12),
-      billingGoalCents: z.number().int().min(0),
-      salesGoalCents: z.number().int().min(0),
-    }).parse(d),
+    z
+      .object({
+        factoryId: z.string().uuid(),
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+        billingGoalCents: z.number().int().min(0),
+        salesGoalCents: z.number().int().min(0),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;

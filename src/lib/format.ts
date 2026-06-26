@@ -23,7 +23,9 @@ export function centsToCompact(cents: number | null | undefined): string {
 
 export function brlInputToCents(input: string): number {
   if (input == null) return 0;
-  const cleaned = String(input).replace(/[^\d,.-]/g, "").trim();
+  const cleaned = String(input)
+    .replace(/[^\d,.-]/g, "")
+    .trim();
   if (!cleaned) return 0;
 
   const hasComma = cleaned.includes(",");
@@ -35,8 +37,7 @@ export function brlInputToCents(input: string): number {
     // Sem vírgula: trate pontos como milhar quando o último grupo tem 3 dígitos
     // (ex.: "5.000.000" -> 5000000). Caso contrário, ponto é decimal ("1234.56").
     const parts = cleaned.split(".");
-    const looksLikeThousands =
-      parts.length > 1 && parts.slice(1).every((p) => p.length === 3);
+    const looksLikeThousands = parts.length > 1 && parts.slice(1).every((p) => p.length === 3);
     normalized = looksLikeThousands ? parts.join("") : cleaned;
   }
   const value = parseFloat(normalized);
@@ -55,7 +56,6 @@ export function centsToBRLInput(cents: number | null | undefined): string {
   const reaisFmt = reais.toLocaleString("pt-BR");
   return `${sign}${reaisFmt},${String(centavos).padStart(2, "0")}`;
 }
-
 
 export function formatPct(value: number, digits = 1): string {
   if (!Number.isFinite(value)) return "—";
@@ -101,6 +101,24 @@ export function todayISO(): string {
     day: "2-digit",
   });
   return fmt.format(new Date());
+}
+
+export function labelEntity(entity: string): string {
+  return (
+    {
+      sales_entries: "Vendas",
+      billing_entries: "Faturamento",
+      goals: "Meta",
+      work_calendar_days: "Calendário",
+      user_roles: "Função de usuário",
+      user_permissions: "Permissão de usuário",
+      user_factory_access: "Acesso a fábrica",
+    }[entity] ?? entity
+  );
+}
+
+export function labelAction(action: string): string {
+  return { create: "Criado", update: "Atualizado", delete: "Removido" }[action] ?? action;
 }
 
 export function monthRange(year: number, month: number): { start: string; end: string } {

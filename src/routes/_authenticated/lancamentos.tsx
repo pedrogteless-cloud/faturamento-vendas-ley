@@ -51,7 +51,7 @@ function EntriesPage() {
   const mutation = useMutation({
     mutationFn: async () => {
       const cents = brlInputToCents(amount);
-      if (cents <= 0) throw new Error("Informe um valor maior que zero.");
+      if (!Number.isFinite(cents) || cents < 0) throw new Error("Informe um valor maior ou igual a zero.");
       if (!factoryId) throw new Error("Selecione a fábrica.");
       return submitEntry({
         data: { type, factoryId, referenceDate: date, amountCents: cents, note: note || null },

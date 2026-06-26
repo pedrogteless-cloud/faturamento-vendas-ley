@@ -47,4 +47,3 @@ function AuthenticatedLayout() {
 
   return <AppShell session={sessionQuery.data ?? null} />;
 }
-

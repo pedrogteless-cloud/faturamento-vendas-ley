@@ -4,7 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  createUser, listUsers, sendPasswordReset, setUserActive, updateUserAccess,
+  createUser,
+  listUsers,
+  sendPasswordReset,
+  setUserActive,
+  updateUserAccess,
 } from "@/lib/admin-users.functions";
 import { listFactories } from "@/lib/factories.functions";
 import { getSessionContext } from "@/lib/session.functions";
@@ -16,7 +20,13 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
 
-const ALL_ROLES: AppRole[] = ["admin", "diretoria", "gerente_comercial", "assistente_vendas", "responsavel_faturamento"];
+const ALL_ROLES: AppRole[] = [
+  "admin",
+  "diretoria",
+  "gerente_comercial",
+  "assistente_vendas",
+  "responsavel_faturamento",
+];
 const ALL_PERMS: { value: AppPermission; label: string }[] = [
   { value: "manage_goals", label: "Editar metas" },
   { value: "manage_work_calendar", label: "Editar calendário" },
@@ -43,7 +53,9 @@ function AdminPage() {
   });
 
   if (sessionQuery.data && !canAccessAdmin(sessionQuery.data)) {
-    return <div className="p-8 text-sm text-muted-foreground">Acesso restrito a administradores.</div>;
+    return (
+      <div className="p-8 text-sm text-muted-foreground">Acesso restrito a administradores.</div>
+    );
   }
 
   return (
@@ -51,7 +63,9 @@ function AdminPage() {
       <header className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Administração de usuários</h1>
-          <p className="text-xs text-muted-foreground">Crie usuários, defina funções, permissões e fábricas autorizadas.</p>
+          <p className="text-xs text-muted-foreground">
+            Crie usuários, defina funções, permissões e fábricas autorizadas.
+          </p>
         </div>
       </header>
 
@@ -62,7 +76,9 @@ function AdminPage() {
             await submitCreate({ data: payload });
             toast.success("Usuário criado. Link de definição de senha enviado.");
             qc.invalidateQueries({ queryKey: ["admin-users"] });
-          } catch (e) { toast.error((e as Error).message); }
+          } catch (e) {
+            toast.error((e as Error).message);
+          }
         }}
       />
 
@@ -90,20 +106,26 @@ function AdminPage() {
                     await submitAccess({ data: payload });
                     toast.success("Acesso atualizado.");
                     qc.invalidateQueries({ queryKey: ["admin-users"] });
-                  } catch (e) { toast.error((e as Error).message); }
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  }
                 }}
                 onToggleActive={async (active) => {
                   try {
                     await submitActive({ data: { userId: u.id, active } });
                     toast.success(active ? "Usuário ativado." : "Usuário desativado.");
                     qc.invalidateQueries({ queryKey: ["admin-users"] });
-                  } catch (e) { toast.error((e as Error).message); }
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  }
                 }}
                 onResetPassword={async () => {
                   try {
                     await submitReset({ data: { email: u.email } });
                     toast.success("Link enviado.");
-                  } catch (e) { toast.error((e as Error).message); }
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  }
                 }}
               />
             ))}
@@ -117,11 +139,16 @@ function AdminPage() {
 type Factory = { id: string; name: string; state: string };
 
 function CreateUserCard({
-  factories, onCreate,
+  factories,
+  onCreate,
 }: {
   factories: Factory[];
   onCreate: (payload: {
-    email: string; fullName: string; roles: AppRole[]; permissions: AppPermission[]; factoryIds: string[];
+    email: string;
+    fullName: string;
+    roles: AppRole[];
+    permissions: AppPermission[];
+    factoryIds: string[];
   }) => Promise<void>;
 }) {
   const [email, setEmail] = useState("");
@@ -138,23 +165,56 @@ function CreateUserCard({
           e.preventDefault();
           if (roles.length === 0) return toast.error("Selecione ao menos uma função.");
           await onCreate({ email, fullName, roles, permissions: perms, factoryIds });
-          setEmail(""); setFullName(""); setRoles([]); setPerms([]); setFactoryIds([]);
+          setEmail("");
+          setFullName("");
+          setRoles([]);
+          setPerms([]);
+          setFactoryIds([]);
         }}
         className="grid gap-3 md:grid-cols-2"
       >
-        <Field label="Nome completo"><input className="input-field" required value={fullName} onChange={(e) => setFullName(e.target.value)} /></Field>
-        <Field label="E-mail"><input className="input-field" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <Field label="Nome completo">
+          <input
+            className="input-field"
+            required
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+          />
+        </Field>
+        <Field label="E-mail">
+          <input
+            className="input-field"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
         <Field label="Funções">
-          <ChipSelect options={ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))} value={roles} onChange={(v) => setRoles(v as AppRole[])} />
+          <ChipSelect
+            options={ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+            value={roles}
+            onChange={(v) => setRoles(v as AppRole[])}
+          />
         </Field>
         <Field label="Permissões adicionais">
-          <ChipSelect options={ALL_PERMS} value={perms} onChange={(v) => setPerms(v as AppPermission[])} />
+          <ChipSelect
+            options={ALL_PERMS}
+            value={perms}
+            onChange={(v) => setPerms(v as AppPermission[])}
+          />
         </Field>
         <Field label="Fábricas autorizadas">
-          <ChipSelect options={factories.map((f) => ({ value: f.id, label: `${f.name} · ${f.state}` }))} value={factoryIds} onChange={setFactoryIds} />
+          <ChipSelect
+            options={factories.map((f) => ({ value: f.id, label: `${f.name} · ${f.state}` }))}
+            value={factoryIds}
+            onChange={setFactoryIds}
+          />
         </Field>
         <div className="md:col-span-2">
-          <button type="submit" className="btn-primary">Criar e enviar link</button>
+          <button type="submit" className="btn-primary">
+            Criar e enviar link
+          </button>
         </div>
       </form>
     </section>
@@ -162,11 +222,20 @@ function CreateUserCard({
 }
 
 function UserRow({
-  user, factories, onSaveAccess, onToggleActive, onResetPassword,
+  user,
+  factories,
+  onSaveAccess,
+  onToggleActive,
+  onResetPassword,
 }: {
   user: Awaited<ReturnType<typeof listUsers>>[number];
   factories: Factory[];
-  onSaveAccess: (payload: { userId: string; roles: AppRole[]; permissions: AppPermission[]; factoryIds: string[] }) => Promise<void>;
+  onSaveAccess: (payload: {
+    userId: string;
+    roles: AppRole[];
+    permissions: AppPermission[];
+    factoryIds: string[];
+  }) => Promise<void>;
   onToggleActive: (active: boolean) => Promise<void>;
   onResetPassword: () => Promise<void>;
 }) {
@@ -182,19 +251,34 @@ function UserRow({
           <div className="font-medium">{user.full_name}</div>
           <div className="text-xs text-muted-foreground">{user.email}</div>
         </td>
-        <td className="px-5 py-3 text-xs">{user.roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}</td>
+        <td className="px-5 py-3 text-xs">
+          {user.roles.map((r) => ROLE_LABEL[r]).join(", ") || "—"}
+        </td>
         <td className="px-5 py-3 text-xs">{user.permissions.join(", ") || "—"}</td>
-        <td className="px-5 py-3 text-xs">{user.factoryIds.map((id) => factories.find((f) => f.id === id)?.name).filter(Boolean).join(", ") || "—"}</td>
+        <td className="px-5 py-3 text-xs">
+          {user.factoryIds
+            .map((id) => factories.find((f) => f.id === id)?.name)
+            .filter(Boolean)
+            .join(", ") || "—"}
+        </td>
         <td className="px-5 py-3">
-          <span className={`rounded-full px-2 py-0.5 text-[10px] ${user.is_active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] ${user.is_active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}
+          >
             {user.is_active ? "Ativo" : "Inativo"}
           </span>
         </td>
-        <td className="px-5 py-3 text-xs text-muted-foreground tabular">{formatDateTimeBR(user.last_sign_in_at)}</td>
+        <td className="px-5 py-3 text-xs text-muted-foreground tabular">
+          {formatDateTimeBR(user.last_sign_in_at)}
+        </td>
         <td className="px-5 py-3 text-right">
           <div className="inline-flex flex-wrap gap-1 justify-end">
-            <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>{editing ? "Cancelar" : "Editar"}</button>
-            <button className="btn-ghost" onClick={onResetPassword}>Reenviar senha</button>
+            <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>
+              {editing ? "Cancelar" : "Editar"}
+            </button>
+            <button className="btn-ghost" onClick={onResetPassword}>
+              Reenviar senha
+            </button>
             <button className="btn-ghost" onClick={() => onToggleActive(!user.is_active)}>
               {user.is_active ? "Desativar" : "Ativar"}
             </button>
@@ -206,13 +290,25 @@ function UserRow({
           <td colSpan={7} className="px-5 py-4">
             <div className="grid gap-3 md:grid-cols-3">
               <Field label="Funções">
-                <ChipSelect options={ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))} value={roles} onChange={(v) => setRoles(v as AppRole[])} />
+                <ChipSelect
+                  options={ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+                  value={roles}
+                  onChange={(v) => setRoles(v as AppRole[])}
+                />
               </Field>
               <Field label="Permissões">
-                <ChipSelect options={ALL_PERMS} value={perms} onChange={(v) => setPerms(v as AppPermission[])} />
+                <ChipSelect
+                  options={ALL_PERMS}
+                  value={perms}
+                  onChange={(v) => setPerms(v as AppPermission[])}
+                />
               </Field>
               <Field label="Fábricas">
-                <ChipSelect options={factories.map((f) => ({ value: f.id, label: `${f.name} · ${f.state}` }))} value={factoryIds} onChange={setFactoryIds} />
+                <ChipSelect
+                  options={factories.map((f) => ({ value: f.id, label: `${f.name} · ${f.state}` }))}
+                  value={factoryIds}
+                  onChange={setFactoryIds}
+                />
               </Field>
             </div>
             <div className="mt-3">
@@ -222,7 +318,9 @@ function UserRow({
                   await onSaveAccess({ userId: user.id, roles, permissions: perms, factoryIds });
                   setEditing(false);
                 }}
-              >Salvar</button>
+              >
+                Salvar
+              </button>
             </div>
           </td>
         </tr>
@@ -232,7 +330,9 @@ function UserRow({
 }
 
 function ChipSelect<T extends string>({
-  options, value, onChange,
+  options,
+  value,
+  onChange,
 }: {
   options: { value: T; label: string }[];
   value: T[];

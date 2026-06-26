@@ -56,12 +56,21 @@ export const upsertEntry = createServerFn({ method: "POST" })
 
 export const listEntries = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ type: z.enum(["sales", "billing"]), limit: z.number().int().min(1).max(200).default(60) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        type: z.enum(["sales", "billing"]),
+        limit: z.number().int().min(1).max(200).default(60),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const table = data.type === "sales" ? "sales_entries" : "billing_entries";
     const { data: rows, error } = await context.supabase
       .from(table)
-      .select("id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by")
+      .select(
+        "id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by",
+      )
       .order("reference_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(data.limit);

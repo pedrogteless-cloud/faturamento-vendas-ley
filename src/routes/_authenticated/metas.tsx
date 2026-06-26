@@ -38,16 +38,32 @@ function GoalsPage() {
       <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold">Metas mensais</h1>
-          <p className="text-xs text-muted-foreground">Defina meta de faturamento e meta de vendas para cada fábrica.</p>
+          <p className="text-xs text-muted-foreground">
+            Defina meta de faturamento e meta de vendas para cada fábrica.
+          </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <select className="input-field !w-auto" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+          <select
+            className="input-field !w-auto"
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+          >
             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+              <option key={m} value={m}>
+                {String(m).padStart(2, "0")}
+              </option>
             ))}
           </select>
-          <select className="input-field !w-auto" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-            {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+          <select
+            className="input-field !w-auto"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+          >
+            {[year - 1, year, year + 1].map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
           </select>
         </div>
       </header>
@@ -65,7 +81,9 @@ function GoalsPage() {
               canManage={canManage}
               onSave={async (b, s) => {
                 try {
-                  await saveGoal({ data: { factoryId: f.id, year, month, billingGoalCents: b, salesGoalCents: s } });
+                  await saveGoal({
+                    data: { factoryId: f.id, year, month, billingGoalCents: b, salesGoalCents: s },
+                  });
                   toast.success("Meta salva.");
                   qc.invalidateQueries({ queryKey: ["goals", year, month] });
                   qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -82,7 +100,12 @@ function GoalsPage() {
 }
 
 function GoalCard({
-  factoryName, factoryId, billingCents, salesCents, canManage, onSave,
+  factoryName,
+  factoryId,
+  billingCents,
+  salesCents,
+  canManage,
+  onSave,
 }: {
   factoryName: string;
   factoryId: string;
@@ -93,8 +116,12 @@ function GoalCard({
 }) {
   const [billing, setBilling] = useState(centsToBRLInput(billingCents));
   const [sales, setSales] = useState(centsToBRLInput(salesCents));
-  useEffect(() => { setBilling(centsToBRLInput(billingCents)); }, [billingCents]);
-  useEffect(() => { setSales(centsToBRLInput(salesCents)); }, [salesCents]);
+  useEffect(() => {
+    setBilling(centsToBRLInput(billingCents));
+  }, [billingCents]);
+  useEffect(() => {
+    setSales(centsToBRLInput(salesCents));
+  }, [salesCents]);
   void factoryId;
 
   return (
@@ -102,12 +129,30 @@ function GoalCard({
       <h3 className="text-sm font-semibold">{factoryName}</h3>
       <div className="mt-4 space-y-3">
         <Field label="Meta mensal de faturamento (R$)">
-          <input type="text" inputMode="decimal" className="input-field tabular" value={billing} onChange={(e) => setBilling(e.target.value)} disabled={!canManage} />
-          <span className="block pt-1 text-[11px] text-muted-foreground">Atual: {centsToBRL(billingCents)}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="input-field tabular"
+            value={billing}
+            onChange={(e) => setBilling(e.target.value)}
+            disabled={!canManage}
+          />
+          <span className="block pt-1 text-[11px] text-muted-foreground">
+            Atual: {centsToBRL(billingCents)}
+          </span>
         </Field>
         <Field label="Meta mensal de vendas (R$)">
-          <input type="text" inputMode="decimal" className="input-field tabular" value={sales} onChange={(e) => setSales(e.target.value)} disabled={!canManage} />
-          <span className="block pt-1 text-[11px] text-muted-foreground">Atual: {centsToBRL(salesCents)}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="input-field tabular"
+            value={sales}
+            onChange={(e) => setSales(e.target.value)}
+            disabled={!canManage}
+          />
+          <span className="block pt-1 text-[11px] text-muted-foreground">
+            Atual: {centsToBRL(salesCents)}
+          </span>
         </Field>
         {canManage && (
           <button

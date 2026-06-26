@@ -25,12 +25,24 @@ function HistoryPage() {
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
         <h1 className="text-xl font-semibold">Histórico de lançamentos</h1>
-        <p className="text-xs text-muted-foreground">Consulta dos lançamentos com data de criação e alteração.</p>
+        <p className="text-xs text-muted-foreground">
+          Consulta dos lançamentos com data de criação e alteração.
+        </p>
       </header>
 
       <div className="mb-4 inline-flex rounded-xl border border-border-subtle bg-surface p-1 text-sm">
-        <button onClick={() => setType("sales")} className={`rounded-lg px-3 py-1.5 ${type === "sales" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Vendas</button>
-        <button onClick={() => setType("billing")} className={`rounded-lg px-3 py-1.5 ${type === "billing" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Faturamento</button>
+        <button
+          onClick={() => setType("sales")}
+          className={`rounded-lg px-3 py-1.5 ${type === "sales" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+        >
+          Vendas
+        </button>
+        <button
+          onClick={() => setType("billing")}
+          className={`rounded-lg px-3 py-1.5 ${type === "billing" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+        >
+          Faturamento
+        </button>
       </div>
 
       <section className="overflow-x-auto rounded-2xl border border-border-subtle bg-surface">
@@ -52,15 +64,25 @@ function HistoryPage() {
                 <tr key={row.id} className="border-t border-border-subtle/40">
                   <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
                   <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
-                  <td className="px-5 py-2 text-right tabular font-medium">{centsToBRL(Number(row.amount_cents))}</td>
-                  <td className="px-5 py-2 text-xs text-muted-foreground">{formatDateTimeBR(row.created_at)}</td>
-                  <td className="px-5 py-2 text-xs text-muted-foreground">{formatDateTimeBR(row.updated_at)}</td>
+                  <td className="px-5 py-2 text-right tabular font-medium">
+                    {centsToBRL(Number(row.amount_cents))}
+                  </td>
+                  <td className="px-5 py-2 text-xs text-muted-foreground">
+                    {formatDateTimeBR(row.created_at)}
+                  </td>
+                  <td className="px-5 py-2 text-xs text-muted-foreground">
+                    {formatDateTimeBR(row.updated_at)}
+                  </td>
                   <td className="px-5 py-2 text-muted-foreground">{row.note ?? "—"}</td>
                 </tr>
               );
             })}
             {entriesQuery.data?.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-xs text-muted-foreground">Nenhum registro.</td></tr>
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-xs text-muted-foreground">
+                  Nenhum registro.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

@@ -8,7 +8,11 @@ export const getSessionContext = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
 
     const [profileRes, rolesRes, permsRes, accessRes] = await Promise.all([
-      supabase.from("profiles").select("email, full_name, is_active").eq("id", userId).maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("email, full_name, is_active")
+        .eq("id", userId)
+        .maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId),
       supabase.from("user_permissions").select("permission").eq("user_id", userId),
       supabase.from("user_factory_access").select("factory_id").eq("user_id", userId),

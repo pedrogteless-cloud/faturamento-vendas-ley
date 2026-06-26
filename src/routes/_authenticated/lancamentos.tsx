@@ -30,7 +30,10 @@ function EntriesPage() {
   });
 
   const factories = factoriesQuery.data ?? [];
-  const userFactoryIds = useMemo(() => new Set(sessionQuery.data?.factoryIds ?? []), [sessionQuery.data]);
+  const userFactoryIds = useMemo(
+    () => new Set(sessionQuery.data?.factoryIds ?? []),
+    [sessionQuery.data],
+  );
   const accessibleFactories = factories.filter(
     (f) =>
       sessionQuery.data?.roles.includes("admin") ||
@@ -51,7 +54,8 @@ function EntriesPage() {
   const mutation = useMutation({
     mutationFn: async () => {
       const cents = brlInputToCents(amount);
-      if (!Number.isFinite(cents) || cents < 0) throw new Error("Informe um valor maior ou igual a zero.");
+      if (!Number.isFinite(cents) || cents < 0)
+        throw new Error("Informe um valor maior ou igual a zero.");
       if (!factoryId) throw new Error("Selecione a fábrica.");
       return submitEntry({
         data: { type, factoryId, referenceDate: date, amountCents: cents, note: note || null },
@@ -71,7 +75,9 @@ function EntriesPage() {
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
         <h1 className="text-xl font-semibold">Lançamentos</h1>
-        <p className="text-xs text-muted-foreground">Registre vendas e faturamento por fábrica e data.</p>
+        <p className="text-xs text-muted-foreground">
+          Registre vendas e faturamento por fábrica e data.
+        </p>
       </header>
 
       <div className="mb-4 inline-flex rounded-xl border border-border-subtle bg-surface p-1 text-sm">
@@ -107,27 +113,55 @@ function EntriesPage() {
               className="space-y-3"
             >
               <Field label="Fábrica">
-                <select className="input-field" value={factoryId} onChange={(e) => setFactoryId(e.target.value)} required>
+                <select
+                  className="input-field"
+                  value={factoryId}
+                  onChange={(e) => setFactoryId(e.target.value)}
+                  required
+                >
                   <option value="">Selecione…</option>
                   {accessibleFactories.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name} · {f.state}</option>
+                    <option key={f.id} value={f.id}>
+                      {f.name} · {f.state}
+                    </option>
                   ))}
                 </select>
               </Field>
               <Field label="Data">
-                <input type="date" className="input-field" value={date} onChange={(e) => setDate(e.target.value)} required />
+                <input
+                  type="date"
+                  className="input-field"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
               </Field>
               <Field label="Valor (R$)">
-                <input type="text" inputMode="decimal" placeholder="0,00" className="input-field tabular" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  className="input-field tabular"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  required
+                />
               </Field>
               <Field label="Observação">
-                <input type="text" className="input-field" value={note} onChange={(e) => setNote(e.target.value)} placeholder="opcional" />
+                <input
+                  type="text"
+                  className="input-field"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="opcional"
+                />
               </Field>
               <button type="submit" disabled={mutation.isPending} className="btn-primary w-full">
                 {mutation.isPending ? "Salvando…" : "Salvar"}
               </button>
               <p className="text-[11px] text-muted-foreground">
-                Se já existir um lançamento para esta fábrica e data, ele será atualizado e auditado.
+                Se já existir um lançamento para esta fábrica e data, ele será atualizado e
+                auditado.
               </p>
             </form>
           )}
@@ -154,13 +188,19 @@ function EntriesPage() {
                     <tr key={row.id} className="border-t border-border-subtle/40">
                       <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
                       <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
-                      <td className="px-5 py-2 text-right tabular font-medium">{centsToBRL(Number(row.amount_cents))}</td>
+                      <td className="px-5 py-2 text-right tabular font-medium">
+                        {centsToBRL(Number(row.amount_cents))}
+                      </td>
                       <td className="px-5 py-2 text-muted-foreground">{row.note ?? "—"}</td>
                     </tr>
                   );
                 })}
                 {entriesQuery.data?.length === 0 && (
-                  <tr><td colSpan={4} className="px-5 py-8 text-center text-xs text-muted-foreground">Nenhum lançamento.</td></tr>
+                  <tr>
+                    <td colSpan={4} className="px-5 py-8 text-center text-xs text-muted-foreground">
+                      Nenhum lançamento.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>

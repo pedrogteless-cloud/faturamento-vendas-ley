@@ -36,7 +36,8 @@ function AuthPage() {
           </div>
           <h1 className="mt-4 text-xl font-semibold">Painel Ley Colchões</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {effectiveMode === "signin" && "Acesso restrito · usuários são criados pela administração"}
+            {effectiveMode === "signin" &&
+              "Acesso restrito · usuários são criados pela administração"}
             {effectiveMode === "reset" && "Defina sua nova senha de acesso"}
           </p>
         </div>
@@ -66,7 +67,10 @@ function SignInForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-border-subtle bg-surface p-5">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 rounded-2xl border border-border-subtle bg-surface p-5"
+    >
       <Field label="E-mail">
         <input
           type="email"
@@ -113,9 +117,28 @@ function ResetForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-border-subtle bg-surface p-5">
-      <Field label="Nova senha"><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="input-field" /></Field>
-      <Field label="Confirme a senha"><input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className="input-field" /></Field>
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 rounded-2xl border border-border-subtle bg-surface p-5"
+    >
+      <Field label="Nova senha">
+        <input
+          type="password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="input-field"
+        />
+      </Field>
+      <Field label="Confirme a senha">
+        <input
+          type="password"
+          required
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          className="input-field"
+        />
+      </Field>
       <button type="submit" disabled={loading} className="btn-primary w-full">
         {loading ? "Salvando…" : "Definir senha"}
       </button>

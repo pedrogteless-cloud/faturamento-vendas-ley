@@ -55,7 +55,11 @@ function AuditPage() {
               </tr>
             ))}
             {query.data?.length === 0 && (
-              <tr><td colSpan={5} className="px-5 py-8 text-center text-xs text-muted-foreground">Sem registros.</td></tr>
+              <tr>
+                <td colSpan={5} className="px-5 py-8 text-center text-xs text-muted-foreground">
+                  Sem registros.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

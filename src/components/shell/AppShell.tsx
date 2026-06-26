@@ -16,6 +16,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeDashboardStatus } from "@/lib/dashboard-status";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -76,27 +77,24 @@ export function AppShell({ session }: { session: SessionContext | null }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [collapsed, setCollapsed] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "failed">(
+    "connecting",
+  );
   const [online, setOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
 
   useEffect(() => {
-    function handleDashboardStatus(event: Event) {
-      const detail = (event as CustomEvent<{ asOf?: string; connected?: boolean }>).detail;
-      if (detail.asOf) setUpdatedAt(detail.asOf);
-      if (typeof detail.connected === "boolean") setRealtimeConnected(detail.connected);
-    }
+    const unsubscribe = subscribeDashboardStatus((status) => {
+      if (status.asOf) setUpdatedAt(status.asOf);
+      setRealtimeStatus(status.realtime);
+    });
     const handleOnline = () => setOnline(true);
-    const handleOffline = () => {
-      setOnline(false);
-      setRealtimeConnected(false);
-    };
-    window.addEventListener("ley:dashboard-status", handleDashboardStatus);
+    const handleOffline = () => setOnline(false);
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     return () => {
-      window.removeEventListener("ley:dashboard-status", handleDashboardStatus);
+      unsubscribe();
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
@@ -116,8 +114,21 @@ export function AppShell({ session }: { session: SessionContext | null }) {
     minute: "2-digit",
   }).format(new Date(updatedAt ?? Date.now()));
 
-  const connectionLabel = !online ? "Offline" : realtimeConnected ? "Tempo real" : "Sincronizando";
-  const ConnectionIcon = !online ? WifiOff : Wifi;
+  const connectionLabel = !online
+    ? "Offline"
+    : realtimeStatus === "connected"
+      ? "Tempo real"
+      : realtimeStatus === "failed"
+        ? "Sem tempo real"
+        : "Sincronizando";
+  const connectionTitle = !online
+    ? "Sem conexão com a internet. Os dados podem estar desatualizados."
+    : realtimeStatus === "connected"
+      ? "Conectado: mudanças aparecem automaticamente, sem precisar recarregar."
+      : realtimeStatus === "failed"
+        ? "Não foi possível manter a conexão em tempo real. Os dados continuam sendo atualizados a cada 30s."
+        : "Estabelecendo conexão em tempo real…";
+  const ConnectionIcon = !online || realtimeStatus === "failed" ? WifiOff : Wifi;
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -214,11 +225,12 @@ export function AppShell({ session }: { session: SessionContext | null }) {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span
+              title={connectionTitle}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ring-1",
-                !online
+                !online || realtimeStatus === "failed"
                   ? "bg-destructive/15 text-destructive ring-destructive/30"
-                  : realtimeConnected
+                  : realtimeStatus === "connected"
                     ? "bg-success/15 text-success ring-success/30"
                     : "bg-warning/15 text-warning ring-warning/30",
               )}

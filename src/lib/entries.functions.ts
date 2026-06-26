@@ -60,6 +60,49 @@ export const upsertEntry = createServerFn({ method: "POST" })
     return { id: inserted.id, updated: false };
   });
 
+const updateFieldsSchema = z.object({
+  type: z.enum(["sales", "billing"]),
+  id: z.string().uuid(),
+  amountCents: z.number().int().min(0).max(1_000_000_000_00),
+  note: z.string().max(500).optional().nullable(),
+});
+
+export const updateEntryFields = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => updateFieldsSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const table = data.type === "sales" ? "sales_entries" : "billing_entries";
+    const { error } = await context.supabase
+      .from(table)
+      .update({
+        amount_cents: data.amountCents,
+        note: data.note ?? null,
+        updated_by: context.userId,
+      })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { id: data.id };
+  });
+
+const deleteEntrySchema = z.object({
+  type: z.enum(["sales", "billing"]),
+  id: z.string().uuid(),
+});
+
+export const deleteEntry = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => deleteEntrySchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const table = data.type === "sales" ? "sales_entries" : "billing_entries";
+    const { error, count } = await context.supabase
+      .from(table)
+      .delete({ count: "exact" })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    if (!count) throw new Error("Você não tem permissão para excluir este lançamento.");
+    return { id: data.id };
+  });
+
 export const listEntries = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -67,16 +110,29 @@ export const listEntries = createServerFn({ method: "GET" })
       .object({
         type: z.enum(["sales", "billing"]),
         limit: z.number().int().min(1).max(200).default(60),
+        factoryId: z.string().uuid().optional(),
+        dateFrom: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        dateTo: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     const table = data.type === "sales" ? "sales_entries" : "billing_entries";
-    const { data: rows, error } = await context.supabase
+    let query = context.supabase
       .from(table)
       .select(
         "id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by",
-      )
+      );
+    if (data.factoryId) query = query.eq("factory_id", data.factoryId);
+    if (data.dateFrom) query = query.gte("reference_date", data.dateFrom);
+    if (data.dateTo) query = query.lte("reference_date", data.dateTo);
+    const { data: rows, error } = await query
       .order("reference_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(data.limit);

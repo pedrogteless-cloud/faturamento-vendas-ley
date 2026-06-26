@@ -8,6 +8,7 @@ import { getSessionContext } from "@/lib/session.functions";
 import { generateDefaultMonth, listCalendar, setCalendarDay } from "@/lib/calendar.functions";
 import { canManageCalendar } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/format";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,7 +73,7 @@ function CalendarPage() {
       qc.invalidateQueries({ queryKey: ["calendar", currentFactory, year, month] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   return (
@@ -147,7 +148,7 @@ function CalendarPage() {
                       qc.invalidateQueries({ queryKey: ["calendar", currentFactory, year, month] });
                       toast.success("Configuração padrão gerada (segunda a sexta).");
                     } catch (e) {
-                      toast.error((e as Error).message);
+                      toast.error(getErrorMessage(e));
                     }
                   }}
                 >

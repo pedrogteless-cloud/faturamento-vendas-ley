@@ -44,7 +44,7 @@ export function brlInputToCents(input: string): number {
   return Math.round(value * 100);
 }
 
-/** Formata centavos para preencher um input editável (sem 'R$' ou separador de milhar). */
+/** Formata centavos para preencher um input editável (sem 'R$', com separador de milhar). */
 export function centsToBRLInput(cents: number | null | undefined): string {
   const n = Number(cents ?? 0);
   if (!Number.isFinite(n) || n === 0) return "";
@@ -52,8 +52,10 @@ export function centsToBRLInput(cents: number | null | undefined): string {
   const abs = Math.abs(n);
   const reais = Math.trunc(abs / 100);
   const centavos = abs % 100;
-  return `${sign}${reais},${String(centavos).padStart(2, "0")}`;
+  const reaisFmt = reais.toLocaleString("pt-BR");
+  return `${sign}${reaisFmt},${String(centavos).padStart(2, "0")}`;
 }
+
 
 export function formatPct(value: number, digits = 1): string {
   if (!Number.isFinite(value)) return "—";

@@ -22,15 +22,37 @@ export function centsToCompact(cents: number | null | undefined): string {
 }
 
 export function brlInputToCents(input: string): number {
-  if (!input) return 0;
-  // aceita "12.345,67" ou "12345.67" ou "12345,67"
-  const cleaned = input.replace(/[^\d,.-]/g, "");
-  const normalized = cleaned.includes(",")
-    ? cleaned.replace(/\./g, "").replace(",", ".")
-    : cleaned;
+  if (input == null) return 0;
+  const cleaned = String(input).replace(/[^\d,.-]/g, "").trim();
+  if (!cleaned) return 0;
+
+  const hasComma = cleaned.includes(",");
+  let normalized: string;
+  if (hasComma) {
+    // Vírgula é decimal; pontos são separadores de milhar.
+    normalized = cleaned.replace(/\./g, "").replace(",", ".");
+  } else {
+    // Sem vírgula: trate pontos como milhar quando o último grupo tem 3 dígitos
+    // (ex.: "5.000.000" -> 5000000). Caso contrário, ponto é decimal ("1234.56").
+    const parts = cleaned.split(".");
+    const looksLikeThousands =
+      parts.length > 1 && parts.slice(1).every((p) => p.length === 3);
+    normalized = looksLikeThousands ? parts.join("") : cleaned;
+  }
   const value = parseFloat(normalized);
-  if (Number.isNaN(value)) return 0;
+  if (!Number.isFinite(value)) return 0;
   return Math.round(value * 100);
+}
+
+/** Formata centavos para preencher um input editável (sem 'R$' ou separador de milhar). */
+export function centsToBRLInput(cents: number | null | undefined): string {
+  const n = Number(cents ?? 0);
+  if (!Number.isFinite(n) || n === 0) return "";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const reais = Math.trunc(abs / 100);
+  const centavos = abs % 100;
+  return `${sign}${reais},${String(centavos).padStart(2, "0")}`;
 }
 
 export function formatPct(value: number, digits = 1): string {

@@ -7,6 +7,7 @@ import {
   createDestination,
   deleteDestination,
   listNotifications,
+  sendDailySummaryNow,
   sendTestMessage,
   setRuleDestination,
   toggleRule,
@@ -56,6 +57,7 @@ function NotificationsPage() {
   const submitToggleRule = useServerFn(toggleRule);
   const submitSetRuleDestination = useServerFn(setRuleDestination);
   const submitTest = useServerFn(sendTestMessage);
+  const submitDailySummary = useServerFn(sendDailySummaryNow);
   const qc = useQueryClient();
 
   const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });
@@ -87,6 +89,12 @@ function NotificationsPage() {
   const testMutation = useMutation({
     mutationFn: (vars: { destinationId: string }) => submitTest({ data: vars }),
     onSuccess: () => toast.success("Mensagem de teste enviada."),
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const summaryMutation = useMutation({
+    mutationFn: () => submitDailySummary(),
+    onSuccess: () => toast.success("Resumo enviado."),
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
@@ -186,6 +194,17 @@ function NotificationsPage() {
                     >
                       {r.is_active ? "Pausar" : "Ativar"}
                     </button>
+                    {r.name === "resumo_diario" && (
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        disabled={summaryMutation.isPending || !r.destination_id}
+                        title={!r.destination_id ? "Vincule um destino primeiro" : undefined}
+                        onClick={() => summaryMutation.mutate()}
+                      >
+                        {summaryMutation.isPending ? "Enviando…" : "Enviar resumo agora"}
+                      </button>
+                    )}
                   </div>
                 )}
               </article>

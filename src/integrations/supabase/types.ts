@@ -558,6 +558,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fmt_brl: { Args: { cents: number }; Returns: string }
       has_factory_access: {
         Args: { _factory_id: string; _user_id: string }
         Returns: boolean
@@ -577,6 +578,29 @@ export type Database = {
         Returns: boolean
       }
       is_active_user: { Args: { _user_id: string }; Returns: boolean }
+      notify_pending_and_risk: { Args: never; Returns: undefined }
+      notify_telegram: {
+        Args: {
+          p_chat_id: string
+          p_idempotency_key?: string
+          p_message: string
+          p_rule_id: string
+        }
+        Returns: string
+      }
+      send_daily_summary: { Args: never; Returns: undefined }
+      workdays_elapsed: {
+        Args: { p_factory_id: string; p_today: string }
+        Returns: number
+      }
+      workdays_in_month: {
+        Args: { p_factory_id: string; p_month: number; p_year: number }
+        Returns: number
+      }
+      workdays_remaining: {
+        Args: { p_factory_id: string; p_today: string }
+        Returns: number
+      }
     }
     Enums: {
       app_permission:

@@ -4,7 +4,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { listFactories } from "@/lib/factories.functions";
-import { listEntries, upsertEntry } from "@/lib/entries.functions";
+import { deleteEntry, listEntries, upsertEntry } from "@/lib/entries.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
 import { getSessionContext } from "@/lib/session.functions";
 import { centsToBRL, formatDateBR, getErrorMessage, todayISO } from "@/lib/format";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
@@ -28,6 +40,7 @@ function EntriesPage() {
   const fetchSession = useServerFn(getSessionContext);
   const fetchEntries = useServerFn(listEntries);
   const submitEntry = useServerFn(upsertEntry);
+  const removeEntry = useServerFn(deleteEntry);
   const qc = useQueryClient();
 
   const factoriesQuery = useQuery({ queryKey: ["factories"], queryFn: () => fetchFactories() });
@@ -77,6 +90,16 @@ function EntriesPage() {
       toast.success(res.updated ? "Lançamento atualizado." : "Lançamento registrado.");
       setAmountCents(0);
       setNote("");
+      qc.invalidateQueries({ queryKey: ["entries", type] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => removeEntry({ data: { type, id } }),
+    onSuccess: () => {
+      toast.success("Lançamento excluído.");
       qc.invalidateQueries({ queryKey: ["entries", type] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
@@ -198,6 +221,7 @@ function EntriesPage() {
                   <th className="px-5 py-2 text-left">Fábrica</th>
                   <th className="px-5 py-2 text-right">Valor</th>
                   <th className="px-5 py-2 text-left">Observação</th>
+                  {canSubmit && <th className="px-5 py-2" />}
                 </tr>
               </thead>
               <tbody>
@@ -216,12 +240,47 @@ function EntriesPage() {
                       >
                         {row.note ?? "—"}
                       </td>
+                      {canSubmit && (
+                        <td className="px-3 py-2 text-right">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                type="button"
+                                className="rounded p-1 text-muted-foreground hover:text-destructive"
+                                disabled={deleteMutation.isPending}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  {formatDateBR(row.reference_date)} —{" "}
+                                  {fac ? `${fac.name} · ${fac.state}` : "—"} —{" "}
+                                  {centsToBRL(Number(row.amount_cents))}. Esta ação não pode ser
+                                  desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {entriesQuery.data?.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-xs text-muted-foreground">
+                    <td
+                      colSpan={canSubmit ? 5 : 4}
+                      className="px-5 py-8 text-center text-xs text-muted-foreground"
+                    >
                       Nenhum lançamento.
                     </td>
                   </tr>

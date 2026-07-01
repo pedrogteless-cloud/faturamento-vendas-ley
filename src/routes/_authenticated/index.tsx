@@ -107,6 +107,9 @@ function DashboardView({
   onRefresh: () => void;
   session: import("@/lib/permissions").SessionContext | null;
 }) {
+  const canSales = canRegisterSales(session);
+  const canBilling = canRegisterBilling(session);
+
   const consolidated: FactoryCardData = {
     factoryName: "Total Ley Colchões",
     billingTodayCents: data.consolidated.billingTodayCents,
@@ -163,8 +166,6 @@ function DashboardView({
             <FactoryCard {...consolidated} />
             {(() => {
               const pendingMap = new Map(data.pendingToday.map((p) => [p.factoryId, p.missing]));
-              const canSales = canRegisterSales(session);
-              const canBilling = canRegisterBilling(session);
               return (
                 <div className="grid gap-4 md:grid-cols-2">
                   {data.factories.map((f) => (
@@ -197,37 +198,39 @@ function DashboardView({
           </div>
 
           <aside className="space-y-4">
-            <Panel title="Pendências de hoje">
-              {data.pendingToday.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhuma pendência. Tudo lançado.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {data.pendingToday.map((p) => (
-                    <li
-                      key={p.factoryId}
-                      className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs"
-                    >
-                      <div className="font-medium text-foreground">{p.factoryName}</div>
-                      <div className="mt-0.5 flex items-center justify-between gap-2 text-muted-foreground">
-                        <span className="flex shrink-0 items-center gap-2">
-                          {p.missing.map((m) => (
-                            <Link
-                              key={m}
-                              to="/lancamentos"
-                              search={{ factoryId: p.factoryId, type: m as "sales" | "billing" }}
-                              className="inline-flex items-center gap-1 font-medium text-destructive hover:underline"
-                            >
-                              {m === "sales" ? "↗ Venda" : "↗ Fat."}{" "}
-                              <ArrowRight className="h-3 w-3" />
-                            </Link>
-                          ))}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
+            {(canSales || canBilling) && (
+              <Panel title="Pendências de hoje">
+                {data.pendingToday.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhuma pendência. Tudo lançado.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {data.pendingToday.map((p) => (
+                      <li
+                        key={p.factoryId}
+                        className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs"
+                      >
+                        <div className="font-medium text-foreground">{p.factoryName}</div>
+                        <div className="mt-0.5 flex items-center justify-between gap-2 text-muted-foreground">
+                          <span className="flex shrink-0 items-center gap-2">
+                            {p.missing.map((m) => (
+                              <Link
+                                key={m}
+                                to="/lancamentos"
+                                search={{ factoryId: p.factoryId, type: m as "sales" | "billing" }}
+                                className="inline-flex items-center gap-1 font-medium text-destructive hover:underline"
+                              >
+                                {m === "sales" ? "↗ Venda" : "↗ Fat."}{" "}
+                                <ArrowRight className="h-3 w-3" />
+                              </Link>
+                            ))}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
+            )}
 
             <Panel title="Insights">
               <ul className="space-y-2 text-xs">

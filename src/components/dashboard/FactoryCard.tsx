@@ -1,8 +1,11 @@
+import { useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
+import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { centsToBRL, formatPct } from "@/lib/format";
 import { ProgressBar } from "./ProgressBar";
 import { Sparkline } from "./Sparkline";
+import { AnimatedBRL } from "@/components/AnimatedBRL";
 
 export type FactoryCardData = {
   factoryName: string;
@@ -21,6 +24,11 @@ export type FactoryCardData = {
   series: { date: string; billing: number; sales: number }[];
   variant?: "consolidated" | "factory";
   workdayLabel?: string; // override para o consolidado
+  carteiraCents?: number;
+  factoryId?: string;
+  pendingTypes?: ("sales" | "billing")[];
+  canRegisterSales?: boolean;
+  canRegisterBilling?: boolean;
 };
 
 type MetricStatus = "success" | "warning" | "danger" | "info";
@@ -41,6 +49,28 @@ function overallStatus(...statuses: MetricStatus[]): MetricStatus {
   return "success";
 }
 
+function useGoalAchieved(achieved: boolean) {
+  const prevRef = useRef(false);
+  const articleRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (achieved && !prevRef.current && articleRef.current) {
+      const el = articleRef.current;
+      el.animate(
+        [
+          { boxShadow: "0 0 0px 0px oklch(0.78 0.14 240 / 0)" },
+          { boxShadow: "0 0 32px 8px oklch(0.78 0.14 240 / 0.45)" },
+          { boxShadow: "0 0 0px 0px oklch(0.78 0.14 240 / 0)" },
+        ],
+        { duration: 1200, easing: "ease-out" },
+      );
+    }
+    prevRef.current = achieved;
+  }, [achieved]);
+
+  return articleRef;
+}
+
 export function FactoryCard(props: FactoryCardData) {
   const isConsolidated = props.variant === "consolidated";
   const billingPct =
@@ -54,6 +84,12 @@ export function FactoryCard(props: FactoryCardData) {
   const billingStatus = statusFromRatio(props.billingMonthCents, props.expectedBillingCents);
   const salesStatus = statusFromRatio(props.salesMonthCents, props.expectedSalesCents);
   const cardStatus = overallStatus(billingStatus, salesStatus);
+  const goalAchieved =
+    props.billingGoalCents > 0 &&
+    props.billingMonthCents >= props.billingGoalCents &&
+    props.salesGoalCents > 0 &&
+    props.salesMonthCents >= props.salesGoalCents;
+  const articleRef = useGoalAchieved(goalAchieved);
   const remainingBilling = Math.max(0, props.billingGoalCents - props.billingMonthCents);
   const remainingSales = Math.max(0, props.salesGoalCents - props.salesMonthCents);
 
@@ -88,11 +124,13 @@ export function FactoryCard(props: FactoryCardData) {
 
   return (
     <article
+      ref={articleRef}
       className={cn(
         "flex flex-col gap-5 rounded-2xl border bg-surface p-5 shadow-sm transition-colors sm:p-6",
         isConsolidated
           ? "border-primary/40 bg-surface-elevated ring-1 ring-primary/20"
           : "border-border-subtle",
+        goalAchieved && !isConsolidated && "ring-1 ring-success/40",
       )}
     >
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -107,6 +145,31 @@ export function FactoryCard(props: FactoryCardData) {
             )}
           </h3>
           <div className="mt-1 text-xs text-muted-foreground">{workdayLabel}</div>
+          {!isConsolidated &&
+            props.factoryId &&
+            props.pendingTypes &&
+            props.pendingTypes.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {props.pendingTypes.includes("sales") && props.canRegisterSales && (
+                  <Link
+                    to="/lancamentos"
+                    search={{ factoryId: props.factoryId, type: "sales" }}
+                    className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive ring-1 ring-destructive/20 hover:bg-destructive/20"
+                  >
+                    <ArrowUpRight className="h-3 w-3" /> Lançar venda
+                  </Link>
+                )}
+                {props.pendingTypes.includes("billing") && props.canRegisterBilling && (
+                  <Link
+                    to="/lancamentos"
+                    search={{ factoryId: props.factoryId, type: "billing" }}
+                    className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive ring-1 ring-destructive/20 hover:bg-destructive/20"
+                  >
+                    <ArrowUpRight className="h-3 w-3" /> Lançar faturamento
+                  </Link>
+                )}
+              </div>
+            )}
         </div>
         <span
           title={statusTitle}
@@ -121,19 +184,40 @@ export function FactoryCard(props: FactoryCardData) {
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Faturamento hoje
           </div>
-          <div className="tabular mt-1 truncate text-xl font-semibold text-foreground sm:text-2xl">
-            {centsToBRL(props.billingTodayCents)}
-          </div>
+          <AnimatedBRL
+            cents={props.billingTodayCents}
+            className="tabular mt-1 block truncate text-xl font-semibold text-foreground sm:text-2xl"
+          />
         </div>
         <div className="min-w-0 rounded-xl bg-background/30 p-3 sm:bg-transparent sm:p-0">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Vendas hoje
           </div>
-          <div className="tabular mt-1 truncate text-xl font-semibold text-foreground sm:text-2xl">
-            {centsToBRL(props.salesTodayCents)}
-          </div>
+          <AnimatedBRL
+            cents={props.salesTodayCents}
+            className="tabular mt-1 block truncate text-xl font-semibold text-foreground sm:text-2xl"
+          />
         </div>
       </section>
+
+      {props.carteiraCents !== undefined && (
+        <section className="flex items-center justify-between rounded-xl bg-primary/8 px-4 py-3 ring-1 ring-primary/15">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Carteira
+            </div>
+            <AnimatedBRL
+              cents={Math.max(0, props.carteiraCents)}
+              className="tabular mt-0.5 block text-lg font-semibold text-foreground"
+            />
+          </div>
+          {props.carteiraCents < 0 && (
+            <span className="rounded-full bg-destructive/15 px-2.5 py-1 text-[11px] font-medium text-destructive ring-1 ring-destructive/30">
+              Vendas abaixo do faturamento
+            </span>
+          )}
+        </section>
+      )}
 
       <section className="space-y-4 rounded-xl bg-background/40 p-4">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Mês</div>
@@ -143,7 +227,7 @@ export function FactoryCard(props: FactoryCardData) {
             <span className="text-xs text-muted-foreground">Faturamento</span>
             {props.billingGoalCents > 0 ? (
               <span className="tabular text-sm font-semibold text-foreground">
-                {centsToBRL(props.billingMonthCents)}
+                <AnimatedBRL cents={props.billingMonthCents} />
                 <span className="ml-1 text-muted-foreground">
                   / {centsToBRL(props.billingGoalCents)}
                 </span>
@@ -180,7 +264,7 @@ export function FactoryCard(props: FactoryCardData) {
             <span className="text-xs text-muted-foreground">Vendas</span>
             {props.salesGoalCents > 0 ? (
               <span className="tabular text-sm font-semibold text-foreground">
-                {centsToBRL(props.salesMonthCents)}
+                <AnimatedBRL cents={props.salesMonthCents} />
                 <span className="ml-1 text-muted-foreground">
                   / {centsToBRL(props.salesGoalCents)}
                 </span>

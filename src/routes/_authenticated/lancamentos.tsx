@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { useMemo, useState, useEffect } from "react";
+import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -21,10 +22,18 @@ import { getSessionContext } from "@/lib/session.functions";
 import { centsToBRL, formatDateBR, getErrorMessage, todayISO } from "@/lib/format";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 
+const searchSchema = z.object({
+  factoryId: z.string().optional(),
+  type: z.enum(["sales", "billing"]).optional(),
+});
+
 export const Route = createFileRoute("/_authenticated/lancamentos")({
   head: () => ({ meta: [{ title: "Lançamentos — Ley Colchões" }] }),
+  validateSearch: searchSchema,
   component: EntriesPage,
 });
+
+const LAST_FACTORY_KEY = "ley:lastFactoryId";
 
 function formatAmountMask(cents: number): string {
   if (!cents) return "";
@@ -35,7 +44,8 @@ function formatAmountMask(cents: number): string {
 }
 
 function EntriesPage() {
-  const [type, setType] = useState<"sales" | "billing">("sales");
+  const search = useSearch({ from: "/_authenticated/lancamentos" });
+  const [type, setType] = useState<"sales" | "billing">(search.type ?? "sales");
   const fetchFactories = useServerFn(listFactories);
   const fetchSession = useServerFn(getSessionContext);
   const fetchEntries = useServerFn(listEntries);
@@ -67,10 +77,20 @@ function EntriesPage() {
   const canBilling = canRegisterBilling(sessionQuery.data ?? null);
   const canSubmit = type === "sales" ? canSales : canBilling;
 
-  const [factoryId, setFactoryId] = useState<string>("");
+  const [factoryId, setFactoryId] = useState<string>(
+    search.factoryId ??
+      (typeof localStorage !== "undefined" ? (localStorage.getItem(LAST_FACTORY_KEY) ?? "") : ""),
+  );
   const [date, setDate] = useState<string>(todayISO());
   const [amountCents, setAmountCents] = useState<number>(0);
   const [note, setNote] = useState<string>("");
+
+  // Auto-select when exactly 1 accessible factory and none pre-selected
+  useEffect(() => {
+    if (accessibleFactories.length === 1 && !factoryId) {
+      setFactoryId(accessibleFactories[0].id);
+    }
+  }, [accessibleFactories, factoryId]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -88,6 +108,7 @@ function EntriesPage() {
     },
     onSuccess: (res) => {
       toast.success(res.updated ? "Lançamento atualizado." : "Lançamento registrado.");
+      localStorage.setItem(LAST_FACTORY_KEY, factoryId);
       setAmountCents(0);
       setNote("");
       qc.invalidateQueries({ queryKey: ["entries", type] });
@@ -116,6 +137,8 @@ function EntriesPage() {
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["entries", type] }),
   });
+
+  const singleFactory = accessibleFactories.length === 1 ? accessibleFactories[0] : null;
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
@@ -161,19 +184,25 @@ function EntriesPage() {
               className="space-y-3"
             >
               <Field label="Fábrica">
-                <select
-                  className="input-field"
-                  value={factoryId}
-                  onChange={(e) => setFactoryId(e.target.value)}
-                  required
-                >
-                  <option value="">Selecione…</option>
-                  {accessibleFactories.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} · {f.state}
-                    </option>
-                  ))}
-                </select>
+                {singleFactory ? (
+                  <div className="input-field flex items-center text-sm">
+                    {singleFactory.name} · {singleFactory.state}
+                  </div>
+                ) : (
+                  <select
+                    className="input-field"
+                    value={factoryId}
+                    onChange={(e) => setFactoryId(e.target.value)}
+                    required
+                  >
+                    <option value="">Selecione…</option>
+                    {accessibleFactories.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} · {f.state}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </Field>
               <Field label="Data">
                 <input

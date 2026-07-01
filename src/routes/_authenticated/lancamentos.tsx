@@ -20,6 +20,8 @@ import { Trash2 } from "lucide-react";
 import { getSessionContext } from "@/lib/session.functions";
 import { centsToBRL, formatDateBR, getErrorMessage, todayISO } from "@/lib/format";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
+import { useMfaGuard } from "@/hooks/useMfaGuard";
+import { MfaDialog } from "@/components/MfaDialog";
 
 export const Route = createFileRoute("/_authenticated/lancamentos")({
   head: () => ({ meta: [{ title: "Lançamentos — Ley Colchões" }] }),
@@ -71,6 +73,7 @@ function EntriesPage() {
   const [date, setDate] = useState<string>(todayISO());
   const [amountCents, setAmountCents] = useState<number>(0);
   const [note, setNote] = useState<string>("");
+  const { mfaState, mfaError, requireMfa, submitCode, dismissMfa } = useMfaGuard();
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -293,7 +296,9 @@ function EntriesPage() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                                  <AlertDialogAction
+                                    onClick={() => requireMfa(() => deleteMutation.mutate(row.id))}
+                                  >
                                     Excluir
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -310,6 +315,13 @@ function EntriesPage() {
           )}
         </section>
       </div>
+
+      <MfaDialog
+        mfaState={mfaState}
+        mfaError={mfaError}
+        onSubmit={submitCode}
+        onCancel={dismissMfa}
+      />
     </div>
   );
 }

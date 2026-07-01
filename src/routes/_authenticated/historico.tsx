@@ -20,6 +20,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useMfaGuard } from "@/hooks/useMfaGuard";
+import { MfaDialog } from "@/components/MfaDialog";
 
 export const Route = createFileRoute("/_authenticated/historico")({
   head: () => ({ meta: [{ title: "Histórico — Ley Colchões" }] }),
@@ -54,6 +56,7 @@ function HistoryPage() {
   const fetchSession = useServerFn(getSessionContext);
   const updateFields = useServerFn(updateEntryFields);
   const removeEntry = useServerFn(deleteEntry);
+  const { mfaState, mfaError, requireMfa, submitCode, dismissMfa } = useMfaGuard();
 
   const factoriesQuery = useQuery({ queryKey: ["factories"], queryFn: () => fetchFactories() });
   const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });
@@ -342,7 +345,7 @@ function HistoryPage() {
                             <button
                               type="button"
                               className="btn-ghost"
-                              onClick={() => saveEdit(row.id)}
+                              onClick={() => requireMfa(() => saveEdit(row.id))}
                               disabled={updateMutation.isPending}
                             >
                               Salvar
@@ -381,7 +384,9 @@ function HistoryPage() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                                  <AlertDialogAction
+                                    onClick={() => requireMfa(() => deleteMutation.mutate(row.id))}
+                                  >
                                     Excluir
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -398,6 +403,13 @@ function HistoryPage() {
           </table>
         )}
       </section>
+
+      <MfaDialog
+        mfaState={mfaState}
+        mfaError={mfaError}
+        onSubmit={submitCode}
+        onCancel={dismissMfa}
+      />
     </div>
   );
 }

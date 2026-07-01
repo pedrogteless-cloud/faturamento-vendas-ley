@@ -99,18 +99,13 @@ export const setRuleDestination = createServerFn({ method: "POST" })
 export const sendDailySummaryNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    // send_daily_summary é criada no Supabase via Lovable (ainda não está nos tipos gerados).
-    const { error } = await (
-      context.supabase.rpc as (
-        fn: string,
-        args: Record<string, unknown>,
-      ) => Promise<{ error: { message: string } | null }>
-    )("send_daily_summary", {});
+    const { error } = await context.supabase.rpc("send_daily_summary");
     if (error) {
       throw new Error(
         `Falha ao enviar resumo: ${error.message}. Verifique se a função send_daily_summary já foi configurada no Supabase.`,
       );
     }
+
     return { ok: true };
   });
 

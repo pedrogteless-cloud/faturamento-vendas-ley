@@ -103,6 +103,8 @@ export const getDashboard = createServerFn({ method: "GET" })
         .in("entity", ["sales_entries", "billing_entries", "goals", "work_calendar_days"])
         .order("created_at", { ascending: false })
         .limit(10),
+      supabase.from("sales_entries").select("factory_id, amount_cents"),
+      supabase.from("billing_entries").select("factory_id, amount_cents"),
     ]);
 
     const queryError =

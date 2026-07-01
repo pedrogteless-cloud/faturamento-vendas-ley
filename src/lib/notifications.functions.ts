@@ -99,18 +99,13 @@ export const setRuleDestination = createServerFn({ method: "POST" })
 export const sendDailySummaryNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    // send_daily_summary é criada no Supabase via Lovable (ainda não está nos tipos gerados).
-    const { error } = await (
-      context.supabase.rpc as (
-        fn: string,
-        args: Record<string, unknown>,
-      ) => Promise<{ error: { message: string } | null }>
-    )("send_daily_summary", {});
+    const { error } = await context.supabase.rpc("send_daily_summary");
     if (error) {
       throw new Error(
         `Falha ao enviar resumo: ${error.message}. Verifique se a função send_daily_summary já foi configurada no Supabase.`,
       );
     }
+
     return { ok: true };
   });
 
@@ -125,19 +120,14 @@ export const sendTestMessage = createServerFn({ method: "POST" })
       .single();
     if (destError) throw new Error(destError.message);
 
-    // notify_telegram é criada no Supabase via Lovable (ainda não está nos tipos gerados).
-    const { error } = await (
-      context.supabase.rpc as (
-        fn: string,
-        args: Record<string, unknown>,
-      ) => Promise<{ error: { message: string } | null }>
-    )("notify_telegram", {
+    const { error } = await context.supabase.rpc("notify_telegram", {
       p_chat_id: dest.chat_id,
       p_message:
         "🔔 Mensagem de teste — Ley Colchões. Se você recebeu isso, o destino está configurado corretamente.",
-      p_rule_id: null,
+      p_rule_id: null as unknown as string,
       p_idempotency_key: `test-${data.destinationId}-${Date.now()}`,
     });
+
     if (error) {
       throw new Error(
         `Falha ao enviar teste: ${error.message}. Verifique se a função notify_telegram já foi configurada no Supabase.`,

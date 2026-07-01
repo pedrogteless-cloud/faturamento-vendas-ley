@@ -242,7 +242,9 @@ export function AppShell({ session }: { session: SessionContext | null }) {
         </header>
 
         <main className="flex-1">
-          <Outlet />
+          <div key={pathname} className="animate-in fade-in duration-200">
+            <Outlet />
+          </div>
         </main>
       </div>
 

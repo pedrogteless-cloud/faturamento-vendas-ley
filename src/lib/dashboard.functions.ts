@@ -18,6 +18,7 @@ export type FactorySummary = {
   expectedBillingCents: number;
   expectedSalesCents: number;
   series: { date: string; billing: number; sales: number }[];
+  carteiraCents: number;
 };
 
 export type DashboardData = {
@@ -32,6 +33,7 @@ export type DashboardData = {
     salesGoalCents: number;
     expectedBillingCents: number;
     expectedSalesCents: number;
+    carteiraCents: number;
   };
   pendingToday: { factoryId: string; factoryName: string; missing: ("sales" | "billing")[] }[];
   recentUpdates: {
@@ -64,36 +66,44 @@ export const getDashboard = createServerFn({ method: "GET" })
     const lastDay = new Date(y, m, 0).getDate();
     const monthEnd = `${y}-${pad(m)}-${pad(lastDay)}`;
 
-    const [factoriesRes, salesRes, billingRes, goalsRes, calendarRes, recentRes] =
-      await Promise.all([
-        supabase.from("factories").select("id, code, name, state").order("name"),
-        supabase
-          .from("sales_entries")
-          .select("factory_id, reference_date, amount_cents")
-          .gte("reference_date", monthStart)
-          .lte("reference_date", monthEnd),
-        supabase
-          .from("billing_entries")
-          .select("factory_id, reference_date, amount_cents")
-          .gte("reference_date", monthStart)
-          .lte("reference_date", monthEnd),
-        supabase
-          .from("goals")
-          .select("factory_id, billing_goal_cents, sales_goal_cents")
-          .eq("year", y)
-          .eq("month", m),
-        supabase
-          .from("work_calendar_days")
-          .select("factory_id, day, is_workday")
-          .gte("day", monthStart)
-          .lte("day", monthEnd),
-        supabase
-          .from("audit_logs")
-          .select("id, entity, action, actor_email, after, created_at")
-          .in("entity", ["sales_entries", "billing_entries", "goals", "work_calendar_days"])
-          .order("created_at", { ascending: false })
-          .limit(10),
-      ]);
+    const [
+      factoriesRes,
+      salesRes,
+      billingRes,
+      goalsRes,
+      calendarRes,
+      recentRes,
+      allSalesRes,
+      allBillingRes,
+    ] = await Promise.all([
+      supabase.from("factories").select("id, code, name, state").order("name"),
+      supabase
+        .from("sales_entries")
+        .select("factory_id, reference_date, amount_cents")
+        .gte("reference_date", monthStart)
+        .lte("reference_date", monthEnd),
+      supabase
+        .from("billing_entries")
+        .select("factory_id, reference_date, amount_cents")
+        .gte("reference_date", monthStart)
+        .lte("reference_date", monthEnd),
+      supabase
+        .from("goals")
+        .select("factory_id, billing_goal_cents, sales_goal_cents")
+        .eq("year", y)
+        .eq("month", m),
+      supabase
+        .from("work_calendar_days")
+        .select("factory_id, day, is_workday")
+        .gte("day", monthStart)
+        .lte("day", monthEnd),
+      supabase
+        .from("audit_logs")
+        .select("id, entity, action, actor_email, after, created_at")
+        .in("entity", ["sales_entries", "billing_entries", "goals", "work_calendar_days"])
+        .order("created_at", { ascending: false })
+        .limit(10),
+    ]);
 
     const queryError =
       factoriesRes.error ??
@@ -116,6 +126,20 @@ export const getDashboard = createServerFn({ method: "GET" })
       const arr = billingByFactory.get(b.factory_id as string) ?? [];
       arr.push({ date: b.reference_date as string, cents: Number(b.amount_cents) });
       billingByFactory.set(b.factory_id as string, arr);
+    }
+    const allSalesTotalByFactory = new Map<string, number>();
+    for (const s of allSalesRes.data ?? []) {
+      allSalesTotalByFactory.set(
+        s.factory_id as string,
+        (allSalesTotalByFactory.get(s.factory_id as string) ?? 0) + Number(s.amount_cents),
+      );
+    }
+    const allBillingTotalByFactory = new Map<string, number>();
+    for (const b of allBillingRes.data ?? []) {
+      allBillingTotalByFactory.set(
+        b.factory_id as string,
+        (allBillingTotalByFactory.get(b.factory_id as string) ?? 0) + Number(b.amount_cents),
+      );
     }
     const goalsByFactory = new Map<string, { b: number; s: number }>();
     for (const g of goalsRes.data ?? []) {
@@ -198,6 +222,8 @@ export const getDashboard = createServerFn({ method: "GET" })
         expectedBillingCents: Math.round(goals.b * ratio),
         expectedSalesCents: Math.round(goals.s * ratio),
         series,
+        carteiraCents:
+          (allSalesTotalByFactory.get(f.id) ?? 0) - (allBillingTotalByFactory.get(f.id) ?? 0),
       };
     });
 
@@ -212,6 +238,7 @@ export const getDashboard = createServerFn({ method: "GET" })
         salesGoalCents: acc.salesGoalCents + f.salesGoalCents,
         expectedBillingCents: acc.expectedBillingCents + f.expectedBillingCents,
         expectedSalesCents: acc.expectedSalesCents + f.expectedSalesCents,
+        carteiraCents: acc.carteiraCents + f.carteiraCents,
       }),
       {
         billingTodayCents: 0,
@@ -222,6 +249,7 @@ export const getDashboard = createServerFn({ method: "GET" })
         salesGoalCents: 0,
         expectedBillingCents: 0,
         expectedSalesCents: 0,
+        carteiraCents: 0,
       },
     );
 

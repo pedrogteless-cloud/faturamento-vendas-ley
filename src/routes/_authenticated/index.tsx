@@ -124,6 +124,7 @@ function DashboardView({
     expectedSalesCents: data.consolidated.expectedSalesCents,
     series: aggregateSeries(data.factories.map((f) => f.series)),
     variant: "consolidated",
+    carteiraCents: data.consolidated.carteiraCents,
     workdayLabel: "Ritmo consolidado das fábricas",
   };
 
@@ -186,6 +187,7 @@ function DashboardView({
                       expectedSalesCents={f.expectedSalesCents}
                       series={f.series}
                       variant="factory"
+                      carteiraCents={f.carteiraCents}
                       factoryId={f.factoryId}
                       pendingTypes={pendingMap.get(f.factoryId)}
                       canRegisterSales={canSales}

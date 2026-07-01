@@ -24,6 +24,7 @@ export type FactoryCardData = {
   series: { date: string; billing: number; sales: number }[];
   variant?: "consolidated" | "factory";
   workdayLabel?: string; // override para o consolidado
+  carteiraCents?: number;
   factoryId?: string;
   pendingTypes?: ("sales" | "billing")[];
   canRegisterSales?: boolean;
@@ -198,6 +199,25 @@ export function FactoryCard(props: FactoryCardData) {
           />
         </div>
       </section>
+
+      {props.carteiraCents !== undefined && (
+        <section className="flex items-center justify-between rounded-xl bg-primary/8 px-4 py-3 ring-1 ring-primary/15">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Carteira
+            </div>
+            <AnimatedBRL
+              cents={Math.max(0, props.carteiraCents)}
+              className="tabular mt-0.5 block text-lg font-semibold text-foreground"
+            />
+          </div>
+          {props.carteiraCents < 0 && (
+            <span className="rounded-full bg-destructive/15 px-2.5 py-1 text-[11px] font-medium text-destructive ring-1 ring-destructive/30">
+              Vendas abaixo do faturamento
+            </span>
+          )}
+        </section>
+      )}
 
       <section className="space-y-4 rounded-xl bg-background/40 p-4">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Mês</div>

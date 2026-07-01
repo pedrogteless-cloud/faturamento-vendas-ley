@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
+import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { centsToBRL, formatPct } from "@/lib/format";
 import { ProgressBar } from "./ProgressBar";
@@ -23,6 +24,10 @@ export type FactoryCardData = {
   series: { date: string; billing: number; sales: number }[];
   variant?: "consolidated" | "factory";
   workdayLabel?: string; // override para o consolidado
+  factoryId?: string;
+  pendingTypes?: ("sales" | "billing")[];
+  canRegisterSales?: boolean;
+  canRegisterBilling?: boolean;
 };
 
 type MetricStatus = "success" | "warning" | "danger" | "info";
@@ -139,6 +144,31 @@ export function FactoryCard(props: FactoryCardData) {
             )}
           </h3>
           <div className="mt-1 text-xs text-muted-foreground">{workdayLabel}</div>
+          {!isConsolidated &&
+            props.factoryId &&
+            props.pendingTypes &&
+            props.pendingTypes.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {props.pendingTypes.includes("sales") && props.canRegisterSales && (
+                  <Link
+                    to="/lancamentos"
+                    search={{ factoryId: props.factoryId, type: "sales" }}
+                    className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive ring-1 ring-destructive/20 hover:bg-destructive/20"
+                  >
+                    <ArrowUpRight className="h-3 w-3" /> Lançar venda
+                  </Link>
+                )}
+                {props.pendingTypes.includes("billing") && props.canRegisterBilling && (
+                  <Link
+                    to="/lancamentos"
+                    search={{ factoryId: props.factoryId, type: "billing" }}
+                    className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive ring-1 ring-destructive/20 hover:bg-destructive/20"
+                  >
+                    <ArrowUpRight className="h-3 w-3" /> Lançar faturamento
+                  </Link>
+                )}
+              </div>
+            )}
         </div>
         <span
           title={statusTitle}

@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { getSessionContext } from "@/lib/session.functions";
+import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 import { Suspense, useEffect, useState } from "react";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { FactoryCard, type FactoryCardData } from "@/components/dashboard/FactoryCard";
@@ -81,17 +83,29 @@ function DashboardContent() {
     setDashboardStatus({ asOf: data.asOf, realtime: realtimeStatus });
   }, [data.asOf, realtimeStatus]);
 
-  return <DashboardView data={data} isRefreshing={isFetching} onRefresh={() => void refetch()} />;
+  const fetchSession = useServerFn(getSessionContext);
+  const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });
+  const session = sessionQuery.data ?? null;
+  return (
+    <DashboardView
+      data={data}
+      isRefreshing={isFetching}
+      onRefresh={() => void refetch()}
+      session={session}
+    />
+  );
 }
 
 function DashboardView({
   data,
   isRefreshing,
   onRefresh,
+  session,
 }: {
   data: DashboardData;
   isRefreshing: boolean;
   onRefresh: () => void;
+  session: import("@/lib/permissions").SessionContext | null;
 }) {
   const consolidated: FactoryCardData = {
     factoryName: "Total Ley Colchões",
@@ -147,28 +161,39 @@ function DashboardView({
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-6">
             <FactoryCard {...consolidated} />
-            <div className="grid gap-4 md:grid-cols-2">
-              {data.factories.map((f) => (
-                <FactoryCard
-                  key={f.factoryId}
-                  factoryName={f.factoryName}
-                  factoryState={f.factoryState}
-                  billingTodayCents={f.billingTodayCents}
-                  salesTodayCents={f.salesTodayCents}
-                  billingMonthCents={f.billingMonthCents}
-                  salesMonthCents={f.salesMonthCents}
-                  billingGoalCents={f.billingGoalCents}
-                  salesGoalCents={f.salesGoalCents}
-                  workdaysElapsed={f.workdaysElapsed}
-                  workdaysTotal={f.workdaysTotal}
-                  calendarConfigured={f.calendarConfigured}
-                  expectedBillingCents={f.expectedBillingCents}
-                  expectedSalesCents={f.expectedSalesCents}
-                  series={f.series}
-                  variant="factory"
-                />
-              ))}
-            </div>
+            {(() => {
+              const pendingMap = new Map(data.pendingToday.map((p) => [p.factoryId, p.missing]));
+              const canSales = canRegisterSales(session);
+              const canBilling = canRegisterBilling(session);
+              return (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {data.factories.map((f) => (
+                    <FactoryCard
+                      key={f.factoryId}
+                      factoryName={f.factoryName}
+                      factoryState={f.factoryState}
+                      billingTodayCents={f.billingTodayCents}
+                      salesTodayCents={f.salesTodayCents}
+                      billingMonthCents={f.billingMonthCents}
+                      salesMonthCents={f.salesMonthCents}
+                      billingGoalCents={f.billingGoalCents}
+                      salesGoalCents={f.salesGoalCents}
+                      workdaysElapsed={f.workdaysElapsed}
+                      workdaysTotal={f.workdaysTotal}
+                      calendarConfigured={f.calendarConfigured}
+                      expectedBillingCents={f.expectedBillingCents}
+                      expectedSalesCents={f.expectedSalesCents}
+                      series={f.series}
+                      variant="factory"
+                      factoryId={f.factoryId}
+                      pendingTypes={pendingMap.get(f.factoryId)}
+                      canRegisterSales={canSales}
+                      canRegisterBilling={canBilling}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           <aside className="space-y-4">
@@ -184,18 +209,19 @@ function DashboardView({
                     >
                       <div className="font-medium text-foreground">{p.factoryName}</div>
                       <div className="mt-0.5 flex items-center justify-between gap-2 text-muted-foreground">
-                        <span>
-                          Faltam:{" "}
-                          {p.missing
-                            .map((m) => (m === "sales" ? "Vendas" : "Faturamento"))
-                            .join(" · ")}
+                        <span className="flex shrink-0 items-center gap-2">
+                          {p.missing.map((m) => (
+                            <Link
+                              key={m}
+                              to="/lancamentos"
+                              search={{ factoryId: p.factoryId, type: m as "sales" | "billing" }}
+                              className="inline-flex items-center gap-1 font-medium text-destructive hover:underline"
+                            >
+                              {m === "sales" ? "↗ Venda" : "↗ Fat."}{" "}
+                              <ArrowRight className="h-3 w-3" />
+                            </Link>
+                          ))}
                         </span>
-                        <Link
-                          to="/lancamentos"
-                          className="inline-flex shrink-0 items-center gap-1 font-medium text-destructive hover:underline"
-                        >
-                          Resolver <ArrowRight className="h-3 w-3" />
-                        </Link>
                       </div>
                     </li>
                   ))}

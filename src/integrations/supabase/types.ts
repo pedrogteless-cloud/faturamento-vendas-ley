@@ -577,6 +577,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_aal2: { Args: never; Returns: boolean }
       is_active_user: { Args: { _user_id: string }; Returns: boolean }
       notify_pending_and_risk: { Args: never; Returns: undefined }
       notify_telegram: {

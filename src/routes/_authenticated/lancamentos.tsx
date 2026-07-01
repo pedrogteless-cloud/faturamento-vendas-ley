@@ -98,12 +98,23 @@ function EntriesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => removeEntry({ data: { type, id } }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ["entries", type] });
+      const previous = qc.getQueryData(["entries", type]);
+      qc.setQueryData(["entries", type], (old: { id: string }[] | undefined) =>
+        (old ?? []).filter((r) => r.id !== id),
+      );
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Lançamento excluído.");
-      qc.invalidateQueries({ queryKey: ["entries", type] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e, _id, ctx) => {
+      toast.error(getErrorMessage(e));
+      if (ctx?.previous) qc.setQueryData(["entries", type], ctx.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["entries", type] }),
   });
 
   return (
@@ -213,81 +224,90 @@ function EntriesPage() {
           <header className="border-b border-border-subtle px-5 py-3 text-sm font-semibold">
             Últimos lançamentos
           </header>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="px-5 py-2 text-left">Data</th>
-                  <th className="px-5 py-2 text-left">Fábrica</th>
-                  <th className="px-5 py-2 text-right">Valor</th>
-                  <th className="px-5 py-2 text-left">Observação</th>
-                  {canSubmit && <th className="px-5 py-2" />}
-                </tr>
-              </thead>
-              <tbody>
-                {(entriesQuery.data ?? []).map((row) => {
-                  const fac = factories.find((f) => f.id === row.factory_id);
-                  return (
-                    <tr key={row.id} className="border-t border-border-subtle/40">
-                      <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
-                      <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
-                      <td className="px-5 py-2 text-right tabular font-medium">
-                        {centsToBRL(Number(row.amount_cents))}
-                      </td>
-                      <td
-                        className="max-w-[220px] truncate px-5 py-2 text-muted-foreground"
-                        title={row.note ?? undefined}
-                      >
-                        {row.note ?? "—"}
-                      </td>
-                      {canSubmit && (
-                        <td className="px-3 py-2 text-right">
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button
-                                type="button"
-                                className="rounded p-1 text-muted-foreground hover:text-destructive"
-                                disabled={deleteMutation.isPending}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  {formatDateBR(row.reference_date)} —{" "}
-                                  {fac ? `${fac.name} · ${fac.state}` : "—"} —{" "}
-                                  {centsToBRL(Number(row.amount_cents))}. Esta ação não pode ser
-                                  desfeita.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
-                                  Excluir
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-                {entriesQuery.data?.length === 0 && (
+          {entriesQuery.isLoading ? (
+            <div className="space-y-px p-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-9 animate-pulse rounded-lg bg-muted/40" />
+              ))}
+            </div>
+          ) : entriesQuery.data?.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 px-5 py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                Nenhum lançamento de {type === "sales" ? "vendas" : "faturamento"} ainda.
+              </p>
+              {canSubmit && (
+                <p className="text-xs text-muted-foreground">
+                  Use o formulário ao lado para registrar o primeiro lançamento.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">
                   <tr>
-                    <td
-                      colSpan={canSubmit ? 5 : 4}
-                      className="px-5 py-8 text-center text-xs text-muted-foreground"
-                    >
-                      Nenhum lançamento.
-                    </td>
+                    <th className="px-5 py-2 text-left">Data</th>
+                    <th className="px-5 py-2 text-left">Fábrica</th>
+                    <th className="px-5 py-2 text-right">Valor</th>
+                    <th className="px-5 py-2 text-left">Observação</th>
+                    {canSubmit && <th className="px-5 py-2" />}
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {(entriesQuery.data ?? []).map((row) => {
+                    const fac = factories.find((f) => f.id === row.factory_id);
+                    return (
+                      <tr key={row.id} className="border-t border-border-subtle/40">
+                        <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
+                        <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
+                        <td className="px-5 py-2 text-right tabular font-medium">
+                          {centsToBRL(Number(row.amount_cents))}
+                        </td>
+                        <td
+                          className="max-w-[220px] truncate px-5 py-2 text-muted-foreground"
+                          title={row.note ?? undefined}
+                        >
+                          {row.note ?? "—"}
+                        </td>
+                        {canSubmit && (
+                          <td className="px-3 py-2 text-right">
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="rounded p-1 text-muted-foreground hover:text-destructive"
+                                  disabled={deleteMutation.isPending}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {formatDateBR(row.reference_date)} —{" "}
+                                    {fac ? `${fac.name} · ${fac.state}` : "—"} —{" "}
+                                    {centsToBRL(Number(row.amount_cents))}. Esta ação não pode ser
+                                    desfeita.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                                    Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </div>

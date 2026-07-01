@@ -76,24 +76,52 @@ function HistoryPage() {
       ? canRegisterSales(sessionQuery.data ?? null)
       : canRegisterBilling(sessionQuery.data ?? null);
 
+  const queryKey = ["entries", type, "history", factoryId, dateFrom, dateTo];
+
   const updateMutation = useMutation({
     mutationFn: (vars: { id: string; amountCents: number; note: string | null }) =>
       updateFields({ data: { type, id: vars.id, amountCents: vars.amountCents, note: vars.note } }),
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData(queryKey);
+      qc.setQueryData(
+        queryKey,
+        (old: { id: string; amount_cents: number | string; note: string | null }[] | undefined) =>
+          (old ?? []).map((r) =>
+            r.id === vars.id ? { ...r, amount_cents: vars.amountCents, note: vars.note } : r,
+          ),
+      );
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Lançamento atualizado.");
       setEditingId(null);
-      qc.invalidateQueries({ queryKey: ["entries"] });
     },
-    onError: (error: Error) => toast.error(getErrorMessage(error)),
+    onError: (error: Error, _vars, ctx) => {
+      toast.error(getErrorMessage(error));
+      if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["entries"] }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => removeEntry({ data: { type, id } }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData(queryKey);
+      qc.setQueryData(queryKey, (old: { id: string }[] | undefined) =>
+        (old ?? []).filter((r) => r.id !== id),
+      );
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Lançamento excluído.");
-      qc.invalidateQueries({ queryKey: ["entries"] });
     },
-    onError: (error: Error) => toast.error(getErrorMessage(error)),
+    onError: (error: Error, _id, ctx) => {
+      toast.error(getErrorMessage(error));
+      if (ctx?.previous) qc.setQueryData(queryKey, ctx.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["entries"] }),
   });
 
   function startEdit(id: string, amountCents: number, note: string | null) {
@@ -232,135 +260,143 @@ function HistoryPage() {
       </div>
 
       <p className="mb-2 text-xs text-muted-foreground">
-        {entriesQuery.data?.length ?? 0} registro(s)
-        {entriesQuery.data?.length === 200 && " · mostrando os 200 mais recentes"}
+        {entriesQuery.isLoading
+          ? "Carregando…"
+          : `${entriesQuery.data?.length ?? 0} registro(s)${entriesQuery.data?.length === 200 ? " · mostrando os 200 mais recentes" : ""}`}
       </p>
 
       <section className="overflow-x-auto rounded-2xl border border-border-subtle bg-surface">
-        <table className="w-full text-sm">
-          <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th className="px-5 py-2 text-left">Data ref.</th>
-              <th className="px-5 py-2 text-left">Fábrica</th>
-              <th className="px-5 py-2 text-right">Valor</th>
-              <th className="px-5 py-2 text-left">Criado</th>
-              <th className="px-5 py-2 text-left">Atualizado</th>
-              <th className="px-5 py-2 text-left">Observação</th>
-              {canEdit && <th className="px-5 py-2 text-right">Ações</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {(entriesQuery.data ?? []).map((row) => {
-              const fac = factoriesQuery.data?.find((f) => f.id === row.factory_id);
-              const isEditing = editingId === row.id;
-              return (
-                <tr key={row.id} className="border-t border-border-subtle/40">
-                  <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
-                  <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
-                  <td className="px-5 py-2 text-right tabular font-medium">
-                    {isEditing ? (
-                      <input
-                        className="input-field !w-32 text-right"
-                        value={editAmount}
-                        onChange={(e) => setEditAmount(e.target.value)}
-                        inputMode="numeric"
-                      />
-                    ) : (
-                      centsToBRL(Number(row.amount_cents))
-                    )}
-                  </td>
-                  <td className="px-5 py-2 text-xs text-muted-foreground">
-                    {formatDateTimeBR(row.created_at)}
-                  </td>
-                  <td className="px-5 py-2 text-xs text-muted-foreground">
-                    {formatDateTimeBR(row.updated_at)}
-                  </td>
-                  <td
-                    className="max-w-48 truncate px-5 py-2 text-muted-foreground"
-                    title={row.note ?? undefined}
-                  >
-                    {isEditing ? (
-                      <input
-                        className="input-field !w-full"
-                        value={editNote}
-                        onChange={(e) => setEditNote(e.target.value)}
-                        maxLength={500}
-                      />
-                    ) : (
-                      (row.note ?? "—")
-                    )}
-                  </td>
-                  {canEdit && (
-                    <td className="px-5 py-2 text-right">
+        {entriesQuery.isLoading ? (
+          <div className="space-y-px p-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-9 animate-pulse rounded-lg bg-muted/40" />
+            ))}
+          </div>
+        ) : entriesQuery.data?.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
+            <p className="text-sm font-medium">Nenhum registro encontrado</p>
+            <p className="text-xs text-muted-foreground">
+              {factoryId || dateFrom || dateTo
+                ? "Tente ajustar os filtros para ver mais resultados."
+                : `Nenhum lançamento de ${type === "sales" ? "vendas" : "faturamento"} cadastrado ainda.`}
+            </p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-5 py-2 text-left">Data ref.</th>
+                <th className="px-5 py-2 text-left">Fábrica</th>
+                <th className="px-5 py-2 text-right">Valor</th>
+                <th className="px-5 py-2 text-left">Criado</th>
+                <th className="px-5 py-2 text-left">Atualizado</th>
+                <th className="px-5 py-2 text-left">Observação</th>
+                {canEdit && <th className="px-5 py-2 text-right">Ações</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {(entriesQuery.data ?? []).map((row) => {
+                const fac = factoriesQuery.data?.find((f) => f.id === row.factory_id);
+                const isEditing = editingId === row.id;
+                return (
+                  <tr key={row.id} className="border-t border-border-subtle/40">
+                    <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
+                    <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
+                    <td className="px-5 py-2 text-right tabular font-medium">
                       {isEditing ? (
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            className="btn-ghost"
-                            onClick={() => saveEdit(row.id)}
-                            disabled={updateMutation.isPending}
-                          >
-                            Salvar
-                          </button>
-                          <button type="button" className="btn-ghost" onClick={cancelEdit}>
-                            Cancelar
-                          </button>
-                        </div>
+                        <input
+                          className="input-field !w-32 text-right"
+                          value={editAmount}
+                          onChange={(e) => setEditAmount(e.target.value)}
+                          inputMode="numeric"
+                        />
                       ) : (
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            className="btn-ghost"
-                            title="Editar"
-                            onClick={() =>
-                              startEdit(row.id, Number(row.amount_cents), row.note ?? null)
-                            }
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button type="button" className="btn-ghost" title="Excluir">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir lançamento</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Essa ação não pode ser desfeita. O lançamento de{" "}
-                                  {formatDateBR(row.reference_date)} no valor de{" "}
-                                  {centsToBRL(Number(row.amount_cents))} será excluído
-                                  permanentemente.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
-                                  Excluir
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
+                        centsToBRL(Number(row.amount_cents))
                       )}
                     </td>
-                  )}
-                </tr>
-              );
-            })}
-            {entriesQuery.data?.length === 0 && (
-              <tr>
-                <td
-                  colSpan={canEdit ? 7 : 6}
-                  className="px-5 py-8 text-center text-xs text-muted-foreground"
-                >
-                  Nenhum registro encontrado para os filtros selecionados.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                    <td className="px-5 py-2 text-xs text-muted-foreground">
+                      {formatDateTimeBR(row.created_at)}
+                    </td>
+                    <td className="px-5 py-2 text-xs text-muted-foreground">
+                      {formatDateTimeBR(row.updated_at)}
+                    </td>
+                    <td
+                      className="max-w-48 truncate px-5 py-2 text-muted-foreground"
+                      title={row.note ?? undefined}
+                    >
+                      {isEditing ? (
+                        <input
+                          className="input-field !w-full"
+                          value={editNote}
+                          onChange={(e) => setEditNote(e.target.value)}
+                          maxLength={500}
+                        />
+                      ) : (
+                        (row.note ?? "—")
+                      )}
+                    </td>
+                    {canEdit && (
+                      <td className="px-5 py-2 text-right">
+                        {isEditing ? (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() => saveEdit(row.id)}
+                              disabled={updateMutation.isPending}
+                            >
+                              Salvar
+                            </button>
+                            <button type="button" className="btn-ghost" onClick={cancelEdit}>
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              title="Editar"
+                              onClick={() =>
+                                startEdit(row.id, Number(row.amount_cents), row.note ?? null)
+                              }
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button type="button" className="btn-ghost" title="Excluir">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir lançamento</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Essa ação não pode ser desfeita. O lançamento de{" "}
+                                    {formatDateBR(row.reference_date)} no valor de{" "}
+                                    {centsToBRL(Number(row.amount_cents))} será excluído
+                                    permanentemente.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteMutation.mutate(row.id)}>
+                                    Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   );

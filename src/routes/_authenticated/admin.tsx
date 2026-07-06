@@ -171,6 +171,7 @@ function CreateUserCard({
   onCreate: (payload: {
     email: string;
     fullName: string;
+    password?: string;
     roles: AppRole[];
     permissions: AppPermission[];
     factoryIds: string[];

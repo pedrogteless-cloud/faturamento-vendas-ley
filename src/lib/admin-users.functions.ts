@@ -63,6 +63,12 @@ export const listUsers = createServerFn({ method: "GET" })
 const createUserSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(2).max(120),
+  password: z
+    .string()
+    .min(8, "Senha deve ter ao menos 8 caracteres")
+    .max(72)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   roles: z
     .array(
       z.enum([
@@ -87,10 +93,11 @@ export const createUser = createServerFn({ method: "POST" })
     await ensureAdmin(context.userId, context.supabase as never);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Cria usuário e envia magic link/recovery
+    // Cria usuário; se senha for informada, já define; caso contrário exige troca no 1º login
     const created = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       email_confirm: true,
+      password: data.password,
       user_metadata: { full_name: data.fullName },
     });
     if (created.error) throw new Error(created.error.message);
@@ -101,7 +108,7 @@ export const createUser = createServerFn({ method: "POST" })
       email: data.email,
       full_name: data.fullName,
       is_active: true,
-      must_change_password: true,
+      must_change_password: !data.password,
     });
 
     if (data.roles.length > 0) {
@@ -120,10 +127,36 @@ export const createUser = createServerFn({ method: "POST" })
         .insert(data.factoryIds.map((fid) => ({ user_id: newUserId, factory_id: fid })));
     }
 
-    // Envia link de definição de senha
-    await supabaseAdmin.auth.resetPasswordForEmail(data.email);
+    // Se nenhuma senha foi definida pelo admin, envia link de definição de senha por e-mail
+    if (!data.password) {
+      await supabaseAdmin.auth.resetPasswordForEmail(data.email);
+    }
 
-    return { ok: true, userId: newUserId };
+    return { ok: true, userId: newUserId, passwordSet: !!data.password };
+  });
+
+export const setUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        password: z.string().min(8, "Senha deve ter ao menos 8 caracteres").max(72),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context.userId, context.supabase as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      password: data.password,
+    });
+    if (error) throw new Error(error.message);
+    await supabaseAdmin
+      .from("profiles")
+      .update({ must_change_password: false })
+      .eq("id", data.userId);
+    return { ok: true };
   });
 
 export const setUserActive = createServerFn({ method: "POST" })

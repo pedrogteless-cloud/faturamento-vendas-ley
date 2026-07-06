@@ -8,6 +8,7 @@ import {
   listUsers,
   sendPasswordReset,
   setUserActive,
+  setUserPassword,
   updateUserAccess,
 } from "@/lib/admin-users.functions";
 import { listFactories } from "@/lib/factories.functions";
@@ -53,6 +54,7 @@ function AdminPage() {
   const submitAccess = useServerFn(updateUserAccess);
   const submitActive = useServerFn(setUserActive);
   const submitReset = useServerFn(sendPasswordReset);
+  const submitSetPassword = useServerFn(setUserPassword);
   const qc = useQueryClient();
 
   const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });
@@ -84,8 +86,12 @@ function AdminPage() {
         factories={factoriesQuery.data ?? []}
         onCreate={async (payload) => {
           try {
-            await submitCreate({ data: payload });
-            toast.success("Usuário criado. Link de definição de senha enviado.");
+            const res = await submitCreate({ data: payload });
+            toast.success(
+              res?.passwordSet
+                ? "Usuário criado com a senha definida."
+                : "Usuário criado. Link de definição de senha enviado.",
+            );
             qc.invalidateQueries({ queryKey: ["admin-users"] });
           } catch (e) {
             toast.error(getErrorMessage(e));
@@ -138,6 +144,14 @@ function AdminPage() {
                     toast.error(getErrorMessage(e));
                   }
                 }}
+                onSetPassword={async (password) => {
+                  try {
+                    await submitSetPassword({ data: { userId: u.id, password } });
+                    toast.success("Senha atualizada.");
+                  } catch (e) {
+                    toast.error(getErrorMessage(e));
+                  }
+                }}
               />
             ))}
           </tbody>
@@ -157,6 +171,7 @@ function CreateUserCard({
   onCreate: (payload: {
     email: string;
     fullName: string;
+    password?: string;
     roles: AppRole[];
     permissions: AppPermission[];
     factoryIds: string[];
@@ -164,9 +179,21 @@ function CreateUserCard({
 }) {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [perms, setPerms] = useState<AppPermission[]>([]);
   const [factoryIds, setFactoryIds] = useState<string[]>([]);
+
+  function genPassword() {
+    const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = "";
+    const arr = new Uint32Array(12);
+    crypto.getRandomValues(arr);
+    for (const n of arr) out += chars[n % chars.length];
+    setPassword(out);
+    setShowPassword(true);
+  }
 
   return (
     <section className="rounded-2xl border border-border-subtle bg-surface p-5">
@@ -175,9 +202,20 @@ function CreateUserCard({
         onSubmit={async (e) => {
           e.preventDefault();
           if (roles.length === 0) return toast.error("Selecione ao menos uma função.");
-          await onCreate({ email, fullName, roles, permissions: perms, factoryIds });
+          if (password && password.length < 8)
+            return toast.error("Senha deve ter ao menos 8 caracteres.");
+          await onCreate({
+            email,
+            fullName,
+            password: password || undefined,
+            roles,
+            permissions: perms,
+            factoryIds,
+          });
           setEmail("");
           setFullName("");
+          setPassword("");
+          setShowPassword(false);
           setRoles([]);
           setPerms([]);
           setFactoryIds([]);
@@ -202,6 +240,35 @@ function CreateUserCard({
             onChange={(e) => setEmail(e.target.value)}
           />
         </Field>
+        <Field label="Senha (opcional — deixe vazio para enviar link por e-mail)">
+          <div className="relative">
+            <input
+              className="input-field pr-24"
+              type={showPassword ? "text" : "password"}
+              minLength={8}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-1">
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? "Ocultar" : "Mostrar"}
+              </button>
+              <button
+                type="button"
+                onClick={genPassword}
+                className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                Gerar
+              </button>
+            </div>
+          </div>
+        </Field>
         <Field label="Funções">
           <ChipSelect
             options={ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
@@ -225,10 +292,12 @@ function CreateUserCard({
         </Field>
         <div className="md:col-span-2">
           <button type="submit" className="btn-primary">
-            Criar e enviar link
+            {password ? "Criar usuário" : "Criar e enviar link"}
           </button>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            O usuário receberá um e-mail para definir a própria senha de acesso.
+            {password
+              ? "O usuário fará login com essa senha. Anote e compartilhe por canal seguro."
+              : "O usuário receberá um e-mail para definir a própria senha de acesso."}
           </p>
         </div>
       </form>
@@ -236,12 +305,14 @@ function CreateUserCard({
   );
 }
 
+
 function UserRow({
   user,
   factories,
   onSaveAccess,
   onToggleActive,
   onResetPassword,
+  onSetPassword,
 }: {
   user: Awaited<ReturnType<typeof listUsers>>[number];
   factories: Factory[];
@@ -253,11 +324,15 @@ function UserRow({
   }) => Promise<void>;
   onToggleActive: (active: boolean) => Promise<void>;
   onResetPassword: () => Promise<void>;
+  onSetPassword: (password: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [roles, setRoles] = useState<AppRole[]>(user.roles);
   const [perms, setPerms] = useState<AppPermission[]>(user.permissions);
   const [factoryIds, setFactoryIds] = useState<string[]>(user.factoryIds);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
 
   return (
     <>
@@ -293,8 +368,11 @@ function UserRow({
             <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>
               {editing ? "Cancelar" : "Editar"}
             </button>
+            <button className="btn-ghost" onClick={() => setPwOpen((v) => !v)}>
+              {pwOpen ? "Cancelar senha" : "Definir senha"}
+            </button>
             <button className="btn-ghost" onClick={onResetPassword}>
-              Reenviar senha
+              Enviar link por e-mail
             </button>
             {user.is_active ? (
               <AlertDialog>
@@ -323,6 +401,66 @@ function UserRow({
           </div>
         </td>
       </tr>
+      {pwOpen && (
+        <tr className="bg-background/40">
+          <td colSpan={7} className="px-5 py-4">
+            <form
+              className="flex flex-wrap items-end gap-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (pw.length < 8) return toast.error("Senha deve ter ao menos 8 caracteres.");
+                await onSetPassword(pw);
+                setPw("");
+                setPwOpen(false);
+                setShowPw(false);
+              }}
+            >
+              <Field label={`Nova senha para ${user.full_name}`}>
+                <div className="relative">
+                  <input
+                    className="input-field pr-24"
+                    type={showPw ? "text" : "password"}
+                    minLength={8}
+                    autoComplete="new-password"
+                    value={pw}
+                    onChange={(e) => setPw(e.target.value)}
+                    placeholder="Mínimo 8 caracteres"
+                    required
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      {showPw ? "Ocultar" : "Mostrar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars =
+                          "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+                        const arr = new Uint32Array(12);
+                        crypto.getRandomValues(arr);
+                        let out = "";
+                        for (const n of arr) out += chars[n % chars.length];
+                        setPw(out);
+                        setShowPw(true);
+                      }}
+                      className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      Gerar
+                    </button>
+                  </div>
+                </div>
+              </Field>
+              <button type="submit" className="btn-primary">
+                Salvar senha
+              </button>
+            </form>
+          </td>
+        </tr>
+      )}
       {editing && (
         <tr className="bg-background/40">
           <td colSpan={7} className="px-5 py-4">

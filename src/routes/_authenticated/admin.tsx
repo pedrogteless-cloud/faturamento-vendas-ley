@@ -305,7 +305,6 @@ function CreateUserCard({
   );
 }
 
-
 function UserRow({
   user,
   factories,
@@ -438,8 +437,7 @@ function UserRow({
                     <button
                       type="button"
                       onClick={() => {
-                        const chars =
-                          "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+                        const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
                         const arr = new Uint32Array(12);
                         crypto.getRandomValues(arr);
                         let out = "";

@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { centsToCompact, formatDateBR } from "@/lib/format";
+import { centsToBRL, centsToCompact, formatDateBR } from "@/lib/format";
 
 type SparklineProps = {
   data: { date: string; value: number }[];
@@ -61,7 +61,7 @@ export function Sparkline({ data, color = "var(--color-primary)", height = 76 }:
             }}
             labelStyle={{ color: "var(--color-muted-foreground)", fontSize: 11 }}
             itemStyle={{ color: "var(--color-foreground)" }}
-            formatter={(value: number) => [centsToCompact(value), "Valor"]}
+            formatter={(value: number) => [centsToBRL(value), "Valor"]}
             labelFormatter={(label) => formatDateBR(label as string)}
           />
           <Area

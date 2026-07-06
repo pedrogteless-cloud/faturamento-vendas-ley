@@ -250,8 +250,11 @@ function EntriesPage() {
                     const digits = e.target.value.replace(/\D/g, "");
                     setAmountCents(digits ? parseInt(digits, 10) : 0);
                   }}
-                  required
                 />
+                <span className="text-[11px] text-muted-foreground">
+                  Deixe em branco para registrar 0 (dia sem{" "}
+                  {type === "sales" ? "vendas" : "faturamento"}).
+                </span>
               </Field>
               <Field label="Observação">
                 <input

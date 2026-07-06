@@ -75,6 +75,7 @@ export const getDashboard = createServerFn({ method: "GET" })
       recentRes,
       allSalesRes,
       allBillingRes,
+      adjustmentsRes,
     ] = await Promise.all([
       supabase.from("factories").select("id, code, name, state").order("name"),
       supabase
@@ -105,6 +106,7 @@ export const getDashboard = createServerFn({ method: "GET" })
         .limit(10),
       supabase.from("sales_entries").select("factory_id, amount_cents"),
       supabase.from("billing_entries").select("factory_id, amount_cents"),
+      supabase.from("carteira_adjustments").select("factory_id, amount_cents"),
     ]);
 
     const queryError =
@@ -141,6 +143,15 @@ export const getDashboard = createServerFn({ method: "GET" })
       allBillingTotalByFactory.set(
         b.factory_id as string,
         (allBillingTotalByFactory.get(b.factory_id as string) ?? 0) + Number(b.amount_cents),
+      );
+    }
+    // Ajustes administrativos de carteira (assinados). Resiliente: se a tabela
+    // ainda não existir, adjustmentsRes.error é ignorado e trata como zero.
+    const adjustmentsByFactory = new Map<string, number>();
+    for (const a of adjustmentsRes.data ?? []) {
+      adjustmentsByFactory.set(
+        a.factory_id as string,
+        (adjustmentsByFactory.get(a.factory_id as string) ?? 0) + Number(a.amount_cents),
       );
     }
     const goalsByFactory = new Map<string, { b: number; s: number }>();
@@ -225,7 +236,9 @@ export const getDashboard = createServerFn({ method: "GET" })
         expectedSalesCents: Math.round(goals.s * ratio),
         series,
         carteiraCents:
-          (allSalesTotalByFactory.get(f.id) ?? 0) - (allBillingTotalByFactory.get(f.id) ?? 0),
+          (allSalesTotalByFactory.get(f.id) ?? 0) -
+          (allBillingTotalByFactory.get(f.id) ?? 0) +
+          (adjustmentsByFactory.get(f.id) ?? 0),
       };
     });
 

@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   MoreHorizontal,
+  Wallet,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -76,6 +77,7 @@ const NAV: NavItem[] = [
     show: (s) => canManageNotifications(s),
     primary: true,
   },
+  { to: "/carteira", label: "Carteira", icon: Wallet, show: (s) => canAccessAdmin(s) },
   { to: "/admin", label: "Usuários", icon: Users, show: (s) => canAccessAdmin(s) },
   { to: "/auditoria", label: "Auditoria", icon: ShieldCheck, show: (s) => canViewAudit(s) },
 ];

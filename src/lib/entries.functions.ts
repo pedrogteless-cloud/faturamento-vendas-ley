@@ -34,7 +34,8 @@ export const upsertEntry = createServerFn({ method: "POST" })
     const table = isSales ? "sales_entries" : "billing_entries";
     const channel: SalesChannel | null = isSales ? (data.channel ?? "representantes") : null;
 
-    let existingQuery = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic table (sales vs billing) with optional channel filter
+    let existingQuery: any = supabase
       .from(table)
       .select("id")
       .eq("factory_id", data.factoryId)

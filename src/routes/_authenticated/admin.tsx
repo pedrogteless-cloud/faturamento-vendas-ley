@@ -368,8 +368,11 @@ function UserRow({
             <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>
               {editing ? "Cancelar" : "Editar"}
             </button>
+            <button className="btn-ghost" onClick={() => setPwOpen((v) => !v)}>
+              {pwOpen ? "Cancelar senha" : "Definir senha"}
+            </button>
             <button className="btn-ghost" onClick={onResetPassword}>
-              Reenviar senha
+              Enviar link por e-mail
             </button>
             {user.is_active ? (
               <AlertDialog>

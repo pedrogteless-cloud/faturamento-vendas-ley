@@ -312,6 +312,7 @@ function UserRow({
   onSaveAccess,
   onToggleActive,
   onResetPassword,
+  onSetPassword,
 }: {
   user: Awaited<ReturnType<typeof listUsers>>[number];
   factories: Factory[];
@@ -323,11 +324,15 @@ function UserRow({
   }) => Promise<void>;
   onToggleActive: (active: boolean) => Promise<void>;
   onResetPassword: () => Promise<void>;
+  onSetPassword: (password: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [roles, setRoles] = useState<AppRole[]>(user.roles);
   const [perms, setPerms] = useState<AppPermission[]>(user.permissions);
   const [factoryIds, setFactoryIds] = useState<string[]>(user.factoryIds);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
 
   return (
     <>

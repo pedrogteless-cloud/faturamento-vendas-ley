@@ -86,8 +86,12 @@ function AdminPage() {
         factories={factoriesQuery.data ?? []}
         onCreate={async (payload) => {
           try {
-            await submitCreate({ data: payload });
-            toast.success("Usuário criado. Link de definição de senha enviado.");
+            const res = await submitCreate({ data: payload });
+            toast.success(
+              res?.passwordSet
+                ? "Usuário criado com a senha definida."
+                : "Usuário criado. Link de definição de senha enviado.",
+            );
             qc.invalidateQueries({ queryKey: ["admin-users"] });
           } catch (e) {
             toast.error(getErrorMessage(e));

@@ -144,6 +144,14 @@ function AdminPage() {
                     toast.error(getErrorMessage(e));
                   }
                 }}
+                onSetPassword={async (password) => {
+                  try {
+                    await submitSetPassword({ data: { userId: u.id, password } });
+                    toast.success("Senha atualizada.");
+                  } catch (e) {
+                    toast.error(getErrorMessage(e));
+                  }
+                }}
               />
             ))}
           </tbody>

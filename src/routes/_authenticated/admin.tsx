@@ -8,6 +8,7 @@ import {
   listUsers,
   sendPasswordReset,
   setUserActive,
+  setUserPassword,
   updateUserAccess,
 } from "@/lib/admin-users.functions";
 import { listFactories } from "@/lib/factories.functions";

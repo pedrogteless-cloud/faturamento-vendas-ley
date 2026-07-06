@@ -63,6 +63,12 @@ export const listUsers = createServerFn({ method: "GET" })
 const createUserSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(2).max(120),
+  password: z
+    .string()
+    .min(8, "Senha deve ter ao menos 8 caracteres")
+    .max(72)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   roles: z
     .array(
       z.enum([

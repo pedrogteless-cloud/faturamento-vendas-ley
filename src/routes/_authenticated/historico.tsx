@@ -4,7 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Download, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteEntry, listEntries, updateEntryFields } from "@/lib/entries.functions";
+import {
+  deleteEntry,
+  listEntries,
+  updateEntryFields,
+  SALES_CHANNELS,
+  CHANNEL_LABEL,
+  type SalesChannel,
+} from "@/lib/entries.functions";
 import { listFactories } from "@/lib/factories.functions";
 import { getSessionContext } from "@/lib/session.functions";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
@@ -42,6 +49,7 @@ function parseAmountMask(raw: string): number {
 function HistoryPage() {
   const [type, setType] = useState<"sales" | "billing">("sales");
   const [factoryId, setFactoryId] = useState("");
+  const [channel, setChannel] = useState<SalesChannel | "">("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -58,13 +66,14 @@ function HistoryPage() {
   const factoriesQuery = useQuery({ queryKey: ["factories"], queryFn: () => fetchFactories() });
   const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });
   const entriesQuery = useQuery({
-    queryKey: ["entries", type, "history", factoryId, dateFrom, dateTo],
+    queryKey: ["entries", type, "history", factoryId, channel, dateFrom, dateTo],
     queryFn: () =>
       fetchEntries({
         data: {
           type,
           limit: 200,
           factoryId: factoryId || undefined,
+          channel: type === "sales" && channel ? channel : undefined,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
         },
@@ -76,7 +85,7 @@ function HistoryPage() {
       ? canRegisterSales(sessionQuery.data ?? null)
       : canRegisterBilling(sessionQuery.data ?? null);
 
-  const queryKey = ["entries", type, "history", factoryId, dateFrom, dateTo];
+  const queryKey = ["entries", type, "history", factoryId, channel, dateFrom, dateTo];
 
   const updateMutation = useMutation({
     mutationFn: (vars: { id: string; amountCents: number; note: string | null }) =>
@@ -144,12 +153,24 @@ function HistoryPage() {
 
   function handleExportCSV() {
     const rows = entriesQuery.data ?? [];
-    const header = ["Data ref.", "Fábrica", "Valor (R$)", "Criado", "Atualizado", "Observação"];
+    const isSales = type === "sales";
+    const header = [
+      "Data ref.",
+      "Fábrica",
+      ...(isSales ? ["Canal"] : []),
+      "Valor (R$)",
+      "Criado",
+      "Atualizado",
+      "Observação",
+    ];
     const lines = rows.map((row) => {
       const fac = factoriesQuery.data?.find((f) => f.id === row.factory_id);
       return [
         formatDateBR(row.reference_date),
         fac ? `${fac.name} - ${fac.state}` : "",
+        ...(isSales
+          ? [CHANNEL_LABEL[(row as { channel?: SalesChannel }).channel ?? "representantes"] ?? ""]
+          : []),
         (Number(row.amount_cents) / 100).toFixed(2).replace(".", ","),
         formatDateTimeBR(row.created_at),
         formatDateTimeBR(row.updated_at),
@@ -217,6 +238,25 @@ function HistoryPage() {
             ))}
           </select>
         </label>
+        {type === "sales" && (
+          <label className="block space-y-1">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Canal
+            </span>
+            <select
+              className="input-field !w-auto"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value as SalesChannel | "")}
+            >
+              <option value="">Todos</option>
+              {SALES_CHANNELS.map((c) => (
+                <option key={c} value={c}>
+                  {CHANNEL_LABEL[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="block space-y-1">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">De</span>
           <input
@@ -235,12 +275,13 @@ function HistoryPage() {
             onChange={(e) => setDateTo(e.target.value)}
           />
         </label>
-        {(factoryId || dateFrom || dateTo) && (
+        {(factoryId || channel || dateFrom || dateTo) && (
           <button
             type="button"
             className="btn-ghost"
             onClick={() => {
               setFactoryId("");
+              setChannel("");
               setDateFrom("");
               setDateTo("");
             }}
@@ -276,7 +317,7 @@ function HistoryPage() {
           <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
             <p className="text-sm font-medium">Nenhum registro encontrado</p>
             <p className="text-xs text-muted-foreground">
-              {factoryId || dateFrom || dateTo
+              {factoryId || channel || dateFrom || dateTo
                 ? "Tente ajustar os filtros para ver mais resultados."
                 : `Nenhum lançamento de ${type === "sales" ? "vendas" : "faturamento"} cadastrado ainda.`}
             </p>
@@ -287,6 +328,7 @@ function HistoryPage() {
               <tr>
                 <th className="px-5 py-2 text-left">Data ref.</th>
                 <th className="px-5 py-2 text-left">Fábrica</th>
+                {type === "sales" && <th className="px-5 py-2 text-left">Canal</th>}
                 <th className="px-5 py-2 text-right">Valor</th>
                 <th className="px-5 py-2 text-left">Criado</th>
                 <th className="px-5 py-2 text-left">Atualizado</th>
@@ -302,6 +344,13 @@ function HistoryPage() {
                   <tr key={row.id} className="border-t border-border-subtle/40">
                     <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
                     <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
+                    {type === "sales" && (
+                      <td className="px-5 py-2 text-muted-foreground">
+                        {CHANNEL_LABEL[
+                          (row as { channel?: SalesChannel }).channel ?? "representantes"
+                        ] ?? "—"}
+                      </td>
+                    )}
                     <td className="px-5 py-2 text-right tabular font-medium">
                       {isEditing ? (
                         <input

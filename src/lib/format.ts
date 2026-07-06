@@ -74,6 +74,12 @@ export function formatPct(value: number, digits = 1): string {
 
 export function formatDateBR(date: string | Date | null | undefined): string {
   if (!date) return "—";
+  // Data pura (YYYY-MM-DD) é um dia de calendário, não um instante: formata direto
+  // sem passar por Date/fuso, senão vira meia-noite UTC e volta um dia em Fortaleza.
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, d] = date.split("-");
+    return `${d}/${m}/${y}`;
+  }
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat("pt-BR", {

@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://divfjtrswewwtqcmbczz.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "faturamento-vendas-mcp",
+      "version": "0.1.0",
+      "title": "Faturamento & Vendas"
+    },
+    "tools": [
+      {
+        "name": "list_factories",
+        "title": "List factories",
+        "description": "List all factories the signed-in user has access to (id, code, name, state).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_dashboard_summary",
+        "title": "Get dashboard summary",
+        "description": "Return current-month billing and sales totals per factory (in BRL cents), plus monthly goals, for the signed-in user's accessible factories.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_recent_entries",
+        "title": "List recent sales/billing entries",
+        "description": "List the most recent sales or billing entries (amount in BRL cents) for factories the signed-in user has access to. Filter by kind ('sales' or 'billing') and optional factory_id.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "sales",
+                "billing"
+              ],
+              "description": "Which kind of entry to list."
+            },
+            "limit": {
+              "default": 10,
+              "description": "Max rows to return (1-50).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "factory_id": {
+              "description": "Optional factory UUID filter.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

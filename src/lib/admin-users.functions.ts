@@ -127,10 +127,36 @@ export const createUser = createServerFn({ method: "POST" })
         .insert(data.factoryIds.map((fid) => ({ user_id: newUserId, factory_id: fid })));
     }
 
-    // Envia link de definição de senha
-    await supabaseAdmin.auth.resetPasswordForEmail(data.email);
+    // Se nenhuma senha foi definida pelo admin, envia link de definição de senha por e-mail
+    if (!data.password) {
+      await supabaseAdmin.auth.resetPasswordForEmail(data.email);
+    }
 
-    return { ok: true, userId: newUserId };
+    return { ok: true, userId: newUserId, passwordSet: !!data.password };
+  });
+
+export const setUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        password: z.string().min(8, "Senha deve ter ao menos 8 caracteres").max(72),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context.userId, context.supabase as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      password: data.password,
+    });
+    if (error) throw new Error(error.message);
+    await supabaseAdmin
+      .from("profiles")
+      .update({ must_change_password: false })
+      .eq("id", data.userId);
+    return { ok: true };
   });
 
 export const setUserActive = createServerFn({ method: "POST" })

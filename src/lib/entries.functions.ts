@@ -3,6 +3,13 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { todayISO } from "@/lib/format";
 
+export const SALES_CHANNELS = ["representantes", "distribuidora"] as const;
+export type SalesChannel = (typeof SALES_CHANNELS)[number];
+export const CHANNEL_LABEL: Record<SalesChannel, string> = {
+  representantes: "Representantes",
+  distribuidora: "Distribuidora",
+};
+
 const upsertSchema = z.object({
   type: z.enum(["sales", "billing"]),
   factoryId: z.string().uuid(),
@@ -15,6 +22,7 @@ const upsertSchema = z.object({
   amountCents: z.number().int().min(0).max(1_000_000_000_00),
   note: z.string().max(500).optional().nullable(),
   reason: z.string().max(500).optional().nullable(),
+  channel: z.enum(SALES_CHANNELS).optional().nullable(),
 });
 
 export const upsertEntry = createServerFn({ method: "POST" })
@@ -22,14 +30,17 @@ export const upsertEntry = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => upsertSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const table = data.type === "sales" ? "sales_entries" : "billing_entries";
+    const isSales = data.type === "sales";
+    const table = isSales ? "sales_entries" : "billing_entries";
+    const channel: SalesChannel | null = isSales ? (data.channel ?? "representantes") : null;
 
-    const existing = await supabase
+    let existingQuery = supabase
       .from(table)
       .select("id")
       .eq("factory_id", data.factoryId)
-      .eq("reference_date", data.referenceDate)
-      .maybeSingle();
+      .eq("reference_date", data.referenceDate);
+    if (isSales) existingQuery = existingQuery.eq("channel", channel as string);
+    const existing = await existingQuery.maybeSingle();
 
     if (existing.data?.id) {
       const { error } = await supabase
@@ -44,16 +55,20 @@ export const upsertEntry = createServerFn({ method: "POST" })
       return { id: existing.data.id, updated: true };
     }
 
+    const insertPayload: Record<string, unknown> = {
+      factory_id: data.factoryId,
+      reference_date: data.referenceDate,
+      amount_cents: data.amountCents,
+      note: data.note ?? null,
+      created_by: userId,
+      updated_by: userId,
+    };
+    if (isSales) insertPayload.channel = channel;
+
     const { data: inserted, error } = await supabase
       .from(table)
-      .insert({
-        factory_id: data.factoryId,
-        reference_date: data.referenceDate,
-        amount_cents: data.amountCents,
-        note: data.note ?? null,
-        created_by: userId,
-        updated_by: userId,
-      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- channel column not yet in generated types
+      .insert(insertPayload as any)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -111,6 +126,7 @@ export const listEntries = createServerFn({ method: "GET" })
         type: z.enum(["sales", "billing"]),
         limit: z.number().int().min(1).max(200).default(60),
         factoryId: z.string().uuid().optional(),
+        channel: z.enum(SALES_CHANNELS).optional(),
         dateFrom: z
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -123,13 +139,13 @@ export const listEntries = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const table = data.type === "sales" ? "sales_entries" : "billing_entries";
-    let query = context.supabase
-      .from(table)
-      .select(
-        "id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by",
-      );
+    const isSales = data.type === "sales";
+    const table = isSales ? "sales_entries" : "billing_entries";
+    const baseCols =
+      "id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by";
+    let query = context.supabase.from(table).select(isSales ? `${baseCols}, channel` : baseCols);
     if (data.factoryId) query = query.eq("factory_id", data.factoryId);
+    if (isSales && data.channel) query = query.eq("channel", data.channel);
     if (data.dateFrom) query = query.gte("reference_date", data.dateFrom);
     if (data.dateTo) query = query.lte("reference_date", data.dateTo);
     const { data: rows, error } = await query

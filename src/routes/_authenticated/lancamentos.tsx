@@ -5,7 +5,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { listFactories } from "@/lib/factories.functions";
-import { deleteEntry, listEntries, upsertEntry } from "@/lib/entries.functions";
+import {
+  deleteEntry,
+  listEntries,
+  upsertEntry,
+  SALES_CHANNELS,
+  CHANNEL_LABEL,
+  type SalesChannel,
+} from "@/lib/entries.functions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +91,7 @@ function EntriesPage() {
   const [date, setDate] = useState<string>(todayISO());
   const [amountCents, setAmountCents] = useState<number>(0);
   const [note, setNote] = useState<string>("");
+  const [channel, setChannel] = useState<SalesChannel>("representantes");
 
   // Auto-select when exactly 1 accessible factory and none pre-selected
   useEffect(() => {
@@ -103,6 +111,7 @@ function EntriesPage() {
           referenceDate: date,
           amountCents,
           note: note || null,
+          channel: type === "sales" ? channel : null,
         },
       });
     },
@@ -204,6 +213,22 @@ function EntriesPage() {
                   </select>
                 )}
               </Field>
+              {type === "sales" && (
+                <Field label="Canal de venda">
+                  <select
+                    className="input-field"
+                    value={channel}
+                    onChange={(e) => setChannel(e.target.value as SalesChannel)}
+                    required
+                  >
+                    {SALES_CHANNELS.map((c) => (
+                      <option key={c} value={c}>
+                        {CHANNEL_LABEL[c]}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label="Data">
                 <input
                   type="date"
@@ -277,6 +302,7 @@ function EntriesPage() {
                   <tr>
                     <th className="px-5 py-2 text-left">Data</th>
                     <th className="px-5 py-2 text-left">Fábrica</th>
+                    {type === "sales" && <th className="px-5 py-2 text-left">Canal</th>}
                     <th className="px-5 py-2 text-right">Valor</th>
                     <th className="px-5 py-2 text-left">Observação</th>
                     {canSubmit && <th className="px-5 py-2" />}
@@ -289,6 +315,13 @@ function EntriesPage() {
                       <tr key={row.id} className="border-t border-border-subtle/40">
                         <td className="px-5 py-2 tabular">{formatDateBR(row.reference_date)}</td>
                         <td className="px-5 py-2">{fac ? `${fac.name} · ${fac.state}` : "—"}</td>
+                        {type === "sales" && (
+                          <td className="px-5 py-2 text-muted-foreground">
+                            {CHANNEL_LABEL[
+                              (row as { channel?: SalesChannel }).channel ?? "representantes"
+                            ] ?? "—"}
+                          </td>
+                        )}
                         <td className="px-5 py-2 text-right tabular font-medium">
                           {centsToBRL(Number(row.amount_cents))}
                         </td>

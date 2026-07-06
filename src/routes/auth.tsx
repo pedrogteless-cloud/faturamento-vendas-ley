@@ -4,7 +4,15 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const searchSchema = z.object({ mode: z.enum(["signin", "reset"]).optional() });
+const searchSchema = z.object({
+  mode: z.enum(["signin", "reset"]).optional(),
+  next: z.string().optional(),
+});
+
+function safeNext(next: string | undefined): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  return next;
+}
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -18,11 +26,11 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-function AuthPage() {
-  const { mode = "signin" } = useSearch({ from: "/auth" });
+export function AuthPage() {
+  const { mode = "signin", next } = useSearch({ from: "/auth" });
   const navigate = useNavigate();
+  const nextPath = safeNext(next);
 
-  // Detecta hash de recovery
   const isRecoveryHash =
     typeof window !== "undefined" && window.location.hash.includes("type=recovery");
   const effectiveMode = isRecoveryHash ? "reset" : mode;
@@ -42,14 +50,14 @@ function AuthPage() {
           </p>
         </div>
 
-        {effectiveMode === "signin" && <SignInForm />}
+        {effectiveMode === "signin" && <SignInForm nextPath={nextPath} />}
         {effectiveMode === "reset" && <ResetForm onDone={() => navigate({ to: "/" })} />}
       </div>
     </div>
   );
 }
 
-function SignInForm() {
+function SignInForm({ nextPath }: { nextPath: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,7 +74,7 @@ function SignInForm() {
       toast.error(invalidCredentials ? "E-mail ou senha incorretos. Tente novamente." : error.message);
       return;
     }
-    window.location.href = "/";
+    window.location.href = nextPath;
   }
 
   async function handleForgotPassword() {

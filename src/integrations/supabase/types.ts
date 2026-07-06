@@ -118,6 +118,41 @@ export type Database = {
           },
         ]
       }
+      carteira_adjustments: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string
+          factory_id: string
+          id: string
+          note: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by: string
+          factory_id: string
+          id?: string
+          note: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string
+          factory_id?: string
+          id?: string
+          note?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carteira_adjustments_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_goal_overrides: {
         Row: {
           billing_goal_cents: number | null

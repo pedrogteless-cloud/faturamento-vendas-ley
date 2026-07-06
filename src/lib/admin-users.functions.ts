@@ -93,10 +93,11 @@ export const createUser = createServerFn({ method: "POST" })
     await ensureAdmin(context.userId, context.supabase as never);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Cria usuário e envia magic link/recovery
+    // Cria usuário; se senha for informada, já define; caso contrário exige troca no 1º login
     const created = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       email_confirm: true,
+      password: data.password,
       user_metadata: { full_name: data.fullName },
     });
     if (created.error) throw new Error(created.error.message);
@@ -107,7 +108,7 @@ export const createUser = createServerFn({ method: "POST" })
       email: data.email,
       full_name: data.fullName,
       is_active: true,
-      must_change_password: true,
+      must_change_password: !data.password,
     });
 
     if (data.roles.length > 0) {

@@ -179,9 +179,21 @@ function CreateUserCard({
 }) {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [perms, setPerms] = useState<AppPermission[]>([]);
   const [factoryIds, setFactoryIds] = useState<string[]>([]);
+
+  function genPassword() {
+    const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = "";
+    const arr = new Uint32Array(12);
+    crypto.getRandomValues(arr);
+    for (const n of arr) out += chars[n % chars.length];
+    setPassword(out);
+    setShowPassword(true);
+  }
 
   return (
     <section className="rounded-2xl border border-border-subtle bg-surface p-5">
@@ -190,9 +202,20 @@ function CreateUserCard({
         onSubmit={async (e) => {
           e.preventDefault();
           if (roles.length === 0) return toast.error("Selecione ao menos uma função.");
-          await onCreate({ email, fullName, roles, permissions: perms, factoryIds });
+          if (password && password.length < 8)
+            return toast.error("Senha deve ter ao menos 8 caracteres.");
+          await onCreate({
+            email,
+            fullName,
+            password: password || undefined,
+            roles,
+            permissions: perms,
+            factoryIds,
+          });
           setEmail("");
           setFullName("");
+          setPassword("");
+          setShowPassword(false);
           setRoles([]);
           setPerms([]);
           setFactoryIds([]);
@@ -217,6 +240,35 @@ function CreateUserCard({
             onChange={(e) => setEmail(e.target.value)}
           />
         </Field>
+        <Field label="Senha (opcional — deixe vazio para enviar link por e-mail)">
+          <div className="relative">
+            <input
+              className="input-field pr-24"
+              type={showPassword ? "text" : "password"}
+              minLength={8}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-1">
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? "Ocultar" : "Mostrar"}
+              </button>
+              <button
+                type="button"
+                onClick={genPassword}
+                className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                Gerar
+              </button>
+            </div>
+          </div>
+        </Field>
         <Field label="Funções">
           <ChipSelect
             options={ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
@@ -240,16 +292,19 @@ function CreateUserCard({
         </Field>
         <div className="md:col-span-2">
           <button type="submit" className="btn-primary">
-            Criar e enviar link
+            {password ? "Criar usuário" : "Criar e enviar link"}
           </button>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            O usuário receberá um e-mail para definir a própria senha de acesso.
+            {password
+              ? "O usuário fará login com essa senha. Anote e compartilhe por canal seguro."
+              : "O usuário receberá um e-mail para definir a própria senha de acesso."}
           </p>
         </div>
       </form>
     </section>
   );
 }
+
 
 function UserRow({
   user,

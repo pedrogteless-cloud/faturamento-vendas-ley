@@ -597,6 +597,7 @@ export type Database = {
     }
     Functions: {
       fmt_brl: { Args: { cents: number }; Returns: string }
+      format_brl: { Args: { cents: number }; Returns: string }
       has_factory_access: {
         Args: { _factory_id: string; _user_id: string }
         Returns: boolean

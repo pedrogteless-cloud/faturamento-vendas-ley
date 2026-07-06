@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { centsToCompact, formatDateBR } from "@/lib/format";
+import { centsToBRL, centsToCompact, formatDateBR } from "@/lib/format";
 
 type SparklineProps = {
   data: { date: string; value: number }[];

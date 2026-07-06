@@ -34,7 +34,8 @@ export const upsertEntry = createServerFn({ method: "POST" })
     const table = isSales ? "sales_entries" : "billing_entries";
     const channel: SalesChannel | null = isSales ? (data.channel ?? "representantes") : null;
 
-    let existingQuery = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic table (sales vs billing) with optional channel filter
+    let existingQuery: any = supabase
       .from(table)
       .select("id")
       .eq("factory_id", data.factoryId)
@@ -141,9 +142,11 @@ export const listEntries = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const isSales = data.type === "sales";
     const table = isSales ? "sales_entries" : "billing_entries";
-    const baseCols =
-      "id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by";
-    let query = context.supabase.from(table).select(isSales ? `${baseCols}, channel` : baseCols);
+    const selectCols = isSales
+      ? "id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by, channel"
+      : "id, reference_date, factory_id, amount_cents, note, created_at, updated_at, created_by, updated_by";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic table union defeats select() inference
+    let query: any = context.supabase.from(table).select(selectCols);
     if (data.factoryId) query = query.eq("factory_id", data.factoryId);
     if (isSales && data.channel) query = query.eq("channel", data.channel);
     if (data.dateFrom) query = query.gte("reference_date", data.dateFrom);
@@ -153,5 +156,16 @@ export const listEntries = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(data.limit);
     if (error) throw new Error(error.message);
-    return rows ?? [];
+    return (rows ?? []) as Array<{
+      id: string;
+      reference_date: string;
+      factory_id: string;
+      amount_cents: number;
+      note: string | null;
+      created_at: string;
+      updated_at: string;
+      created_by: string;
+      updated_by: string | null;
+      channel?: SalesChannel;
+    }>;
   });

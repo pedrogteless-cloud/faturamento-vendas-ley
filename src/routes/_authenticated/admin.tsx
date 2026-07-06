@@ -401,6 +401,66 @@ function UserRow({
           </div>
         </td>
       </tr>
+      {pwOpen && (
+        <tr className="bg-background/40">
+          <td colSpan={7} className="px-5 py-4">
+            <form
+              className="flex flex-wrap items-end gap-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (pw.length < 8) return toast.error("Senha deve ter ao menos 8 caracteres.");
+                await onSetPassword(pw);
+                setPw("");
+                setPwOpen(false);
+                setShowPw(false);
+              }}
+            >
+              <Field label={`Nova senha para ${user.full_name}`}>
+                <div className="relative">
+                  <input
+                    className="input-field pr-24"
+                    type={showPw ? "text" : "password"}
+                    minLength={8}
+                    autoComplete="new-password"
+                    value={pw}
+                    onChange={(e) => setPw(e.target.value)}
+                    placeholder="Mínimo 8 caracteres"
+                    required
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      {showPw ? "Ocultar" : "Mostrar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars =
+                          "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+                        const arr = new Uint32Array(12);
+                        crypto.getRandomValues(arr);
+                        let out = "";
+                        for (const n of arr) out += chars[n % chars.length];
+                        setPw(out);
+                        setShowPw(true);
+                      }}
+                      className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      Gerar
+                    </button>
+                  </div>
+                </div>
+              </Field>
+              <button type="submit" className="btn-primary">
+                Salvar senha
+              </button>
+            </form>
+          </td>
+        </tr>
+      )}
       {editing && (
         <tr className="bg-background/40">
           <td colSpan={7} className="px-5 py-4">

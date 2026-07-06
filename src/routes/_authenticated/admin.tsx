@@ -54,6 +54,7 @@ function AdminPage() {
   const submitAccess = useServerFn(updateUserAccess);
   const submitActive = useServerFn(setUserActive);
   const submitReset = useServerFn(sendPasswordReset);
+  const submitSetPassword = useServerFn(setUserPassword);
   const qc = useQueryClient();
 
   const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });

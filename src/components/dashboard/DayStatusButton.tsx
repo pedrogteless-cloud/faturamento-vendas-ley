@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Activity, Copy, Check } from "lucide-react";
+import { Activity, Copy, Check, Send } from "lucide-react";
 import { toast } from "sonner";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +10,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { centsToBRL } from "@/lib/format";
+import { centsToBRL, getErrorMessage } from "@/lib/format";
+import { sendDailySummaryNow } from "@/lib/notifications.functions";
 import type { DashboardData } from "@/lib/dashboard.functions";
 
 type Row = {
@@ -58,9 +61,16 @@ function buildText(data: DashboardData): string {
   return lines.join("\n").trim();
 }
 
-export function DayStatusButton({ data }: { data: DashboardData }) {
+export function DayStatusButton({ data, canSend }: { data: DashboardData; canSend?: boolean }) {
   const [copied, setCopied] = useState(false);
   const rows = buildRows(data);
+  const sendSummary = useServerFn(sendDailySummaryNow);
+
+  const sendMutation = useMutation({
+    mutationFn: () => sendSummary(),
+    onSuccess: () => toast.success("Resumo enviado no Telegram."),
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
 
   async function handleCopy() {
     try {
@@ -114,14 +124,27 @@ export function DayStatusButton({ data }: { data: DashboardData }) {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="btn-primary mt-2 inline-flex w-full items-center justify-center gap-2"
-        >
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? "Copiado!" : "Copiar para WhatsApp"}
-        </button>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="btn-ghost inline-flex w-full items-center justify-center gap-2"
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Copiado!" : "Copiar para WhatsApp"}
+          </button>
+          {canSend && (
+            <button
+              type="button"
+              onClick={() => sendMutation.mutate()}
+              disabled={sendMutation.isPending}
+              className="btn-primary inline-flex w-full items-center justify-center gap-2"
+            >
+              <Send className="h-4 w-4" />
+              {sendMutation.isPending ? "Enviando…" : "Enviar no Telegram"}
+            </button>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

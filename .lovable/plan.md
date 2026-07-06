@@ -1,27 +1,23 @@
-## Diagnóstico
+Executar limpeza de dados operacionais de teste via SQL no banco, sem alterar código nem outras tabelas.
 
-Banco hoje (junho/2026):
+## O que será feito
 
-- Eusébio · faturamento: **R$ 5.000.000,00** (500.000.000 centavos)
-- Timon · faturamento: **R$ 2,50** (250 centavos)
+Rodar uma única operação de dados que esvazia estas 4 tabelas:
 
-Somando: R$ 5.000.002,50 → o card consolidado arredonda para **R$ 5.000.003**. Ou seja, a soma está correta — o problema é que a meta de Timon nunca foi regravada depois do fix do parser; continua valendo R$ 2,50, salva quando "2.500.000" virava 250 centavos.
+- `sales_entries` — lançamentos de vendas
+- `billing_entries` — lançamentos de faturamento
+- `audit_logs` — histórico de auditoria
+- `notification_delivery_logs` — logs de envio de notificações
 
-## Plano
+Tabelas preservadas intactas: `factories`, `profiles`, `user_roles`, `user_permissions`, `user_factory_access`, `goals`, `work_calendar_days`, `notification_rules`, `notification_destinations`.
 
-1. **Corrigir o dado em produção**
-   - Migration única para atualizar `goals` de Timon (junho/2026) para `billing_goal_cents = 250000000` (R$ 2.500.000,00). Mantém `sales_goal_cents` como está (0).
+## Detalhes técnicos
 
-2. **Evitar repetição do erro na UI de Metas (`src/routes/_authenticated/metas.tsx` + `src/lib/format.ts`)**
-   - `centsToBRLInput`: passar a formatar com separador de milhar (`2.500.000,00`) para o valor atual ficar legível dentro do input — hoje devolve apenas `2,50`, o que confunde quando o usuário reabre o formulário.
-   - `GoalCard`: ao clicar em **Salvar**, exibir um diálogo de confirmação quando o novo valor for **menor que 10%** do valor atual e o atual for ≥ R$ 100.000 (protege contra typo tipo "2,50" sobrescrevendo R$ 5M).
-   - Mostrar abaixo do input o preview formatado em BRL do valor digitado (`= R$ 2.500.000,00`) para feedback imediato antes de salvar.
+- Ferramenta usada: data-change (DELETE). Como a ferramenta de dados aceita apenas INSERT/UPDATE/DELETE (não TRUNCATE), será usado `DELETE FROM` em cada tabela. Efeito prático é o mesmo: as 4 tabelas ficam vazias.
+- Não há sequences numéricas próprias nessas tabelas (IDs são UUID), então `RESTART IDENTITY` não se aplica.
+- Ordem de execução escolhida para respeitar FKs: `notification_delivery_logs` → `audit_logs` → `sales_entries` → `billing_entries`.
+- Nenhum arquivo de código será alterado.
 
-3. **Verificação**
-   - Após migration: rodar `SELECT` nas metas para confirmar Timon = 250.000.000.
-   - Recarregar `/metas` e `/` e conferir consolidado = R$ 7.500.000.
+## Aviso
 
-## Fora de escopo
-
-- Nenhuma mudança nas regras de negócio, RLS, auditoria, lançamentos ou Telegram.
-- Sem alteração no cálculo do consolidado (já é soma absoluta correta).
+A operação é irreversível — todos os lançamentos, logs de auditoria e logs de entrega atuais serão apagados. Confirme antes de eu executar.

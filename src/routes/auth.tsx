@@ -50,7 +50,7 @@ export function AuthPage() {
           </p>
         </div>
 
-        {effectiveMode === "signin" && <SignInForm />}
+        {effectiveMode === "signin" && <SignInForm nextPath={nextPath} />}
         {effectiveMode === "reset" && <ResetForm onDone={() => navigate({ to: "/" })} />}
       </div>
     </div>

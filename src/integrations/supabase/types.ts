@@ -397,6 +397,7 @@ export type Database = {
       sales_entries: {
         Row: {
           amount_cents: number
+          channel: string
           created_at: string
           created_by: string
           factory_id: string
@@ -408,6 +409,7 @@ export type Database = {
         }
         Insert: {
           amount_cents: number
+          channel?: string
           created_at?: string
           created_by: string
           factory_id: string
@@ -419,6 +421,7 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          channel?: string
           created_at?: string
           created_by?: string
           factory_id?: string

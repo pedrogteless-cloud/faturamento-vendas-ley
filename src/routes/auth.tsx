@@ -57,7 +57,7 @@ export function AuthPage() {
   );
 }
 
-function SignInForm() {
+function SignInForm({ nextPath }: { nextPath: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -74,7 +74,7 @@ function SignInForm() {
       toast.error(invalidCredentials ? "E-mail ou senha incorretos. Tente novamente." : error.message);
       return;
     }
-    window.location.href = "/";
+    window.location.href = nextPath;
   }
 
   async function handleForgotPassword() {

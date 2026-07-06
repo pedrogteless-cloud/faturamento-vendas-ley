@@ -71,7 +71,9 @@ function SignInForm({ nextPath }: { nextPath: string }) {
     setLoading(false);
     if (error) {
       const invalidCredentials = /invalid login credentials/i.test(error.message);
-      toast.error(invalidCredentials ? "E-mail ou senha incorretos. Tente novamente." : error.message);
+      toast.error(
+        invalidCredentials ? "E-mail ou senha incorretos. Tente novamente." : error.message,
+      );
       return;
     }
     window.location.href = nextPath;

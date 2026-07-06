@@ -10,7 +10,9 @@ type AuthDetails = {
 
 // Local typed wrapper for the beta supabase.auth.oauth namespace.
 type OAuthApi = {
-  getAuthorizationDetails: (id: string) => Promise<{ data: AuthDetails | null; error: Error | null }>;
+  getAuthorizationDetails: (
+    id: string,
+  ) => Promise<{ data: AuthDetails | null; error: Error | null }>;
   approveAuthorization: (id: string) => Promise<{ data: AuthDetails | null; error: Error | null }>;
   denyAuthorization: (id: string) => Promise<{ data: AuthDetails | null; error: Error | null }>;
 };

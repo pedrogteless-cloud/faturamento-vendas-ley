@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getSessionContext } from "@/lib/session.functions";
-import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
+import { canManageNotifications, canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 import { Suspense, useEffect, useState } from "react";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { FactoryCard, type FactoryCardData } from "@/components/dashboard/FactoryCard";
+import { DayStatusButton } from "@/components/dashboard/DayStatusButton";
 import { getDashboard, type DashboardData } from "@/lib/dashboard.functions";
 import { centsToBRL, formatDateTimeBR, labelAction, labelEntity } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
@@ -143,15 +144,18 @@ function DashboardView({
             {monthLabel} · atualizado em {formatDateTimeBR(data.asOf)}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="btn-ghost min-h-9"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-          {isRefreshing ? "Atualizando" : "Atualizar"}
-        </button>
+        <div className="flex items-center gap-2">
+          <DayStatusButton data={data} canSend={canManageNotifications(session)} />
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="btn-ghost min-h-9"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? "Atualizando" : "Atualizar"}
+          </button>
+        </div>
       </div>
 
       {data.factories.length === 0 ? (

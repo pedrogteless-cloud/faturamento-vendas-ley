@@ -123,25 +123,40 @@ export type Database = {
           amount_cents: number
           created_at: string
           created_by: string
+          destination: string | null
           factory_id: string
           id: string
           note: string
+          original_cents: number | null
+          realized_cents: number | null
+          reason: string
+          reference_date: string | null
         }
         Insert: {
           amount_cents: number
           created_at?: string
           created_by: string
+          destination?: string | null
           factory_id: string
           id?: string
           note: string
+          original_cents?: number | null
+          realized_cents?: number | null
+          reason?: string
+          reference_date?: string | null
         }
         Update: {
           amount_cents?: number
           created_at?: string
           created_by?: string
+          destination?: string | null
           factory_id?: string
           id?: string
           note?: string
+          original_cents?: number | null
+          realized_cents?: number | null
+          reason?: string
+          reference_date?: string | null
         }
         Relationships: [
           {

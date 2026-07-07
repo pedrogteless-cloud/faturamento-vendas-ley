@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.send_daily_summary() TO authenticated;

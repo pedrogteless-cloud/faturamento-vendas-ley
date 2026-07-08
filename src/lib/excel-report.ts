@@ -2,10 +2,20 @@ import type ExcelJSType from "exceljs";
 import type { ReportData } from "@/lib/reports.functions";
 import { formatDateBR } from "@/lib/format";
 
+// Paleta azul (inspirada no modelo aprovado).
+const INK = "FF0A1628"; // navy quase preto — títulos/texto
+const HEADER = "FF1A4BAD"; // azul profundo — cabeçalho padrão
+const BLUE = "FF2E6FD9"; // azul primário
+const BLUE_LIGHT = "FF5B9BF0"; // azul claro
+const TEAL = "FF0E7490"; // total / consolidado
+const NAVY = "FF0D2B6E"; // meta
+const ZEBRA1 = "FFC7DCFF";
+const ZEBRA2 = "FFE8F0FF";
+const BORDER = "FFBBD3F5";
+const WHITE = "FFFFFFFF";
+
 const BRL = '"R$" #,##0.00';
 const PCT = "0.0%";
-const HEADER_FILL = "FF0F172A"; // navy
-const TOTAL_FILL = "FFE2E8F0";
 
 type Col = {
   header: string;
@@ -13,9 +23,23 @@ type Col = {
   width?: number;
   numFmt?: string;
   total?: boolean;
+  fill?: string; // cor do cabeçalho
+  align?: "left" | "center" | "right";
 };
 
 const reais = (cents: number | null | undefined) => Number(cents ?? 0) / 100;
+const fill = (argb: string): ExcelJSType.Fill => ({
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb },
+});
+const thin = (argb: string) => ({ style: "thin" as const, color: { argb } });
+const borderAll = () => ({
+  top: thin(BORDER),
+  left: thin(BORDER),
+  bottom: thin(BORDER),
+  right: thin(BORDER),
+});
 
 function inRange(date: string | null, from: string, to: string): boolean {
   if (!date) return false;
@@ -23,38 +47,77 @@ function inRange(date: string | null, from: string, to: string): boolean {
   return d >= from && d <= to;
 }
 
-function styleHeader(ws: ExcelJSType.Worksheet) {
-  const row = ws.getRow(1);
-  row.font = { bold: true, color: { argb: "FFFFFFFF" } };
-  row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
-  row.alignment = { vertical: "middle" };
-  row.height = 20;
-  ws.views = [{ state: "frozen", ySplit: 1 }];
-}
-
-function addTable(
+function addStyledTable(
   wb: ExcelJSType.Workbook,
-  name: string,
+  sheetName: string,
+  title: string,
   columns: Col[],
   rows: Record<string, unknown>[],
 ) {
-  const ws = wb.addWorksheet(name);
-  ws.columns = columns.map((c) => ({ header: c.header, key: c.key, width: c.width ?? 16 }));
-  for (const r of rows) ws.addRow(r);
-  for (const c of columns) if (c.numFmt) ws.getColumn(c.key).numFmt = c.numFmt;
-  styleHeader(ws);
+  const ws = wb.addWorksheet(sheetName, {
+    views: [{ state: "frozen", ySplit: 2 }],
+  });
+  const n = columns.length;
+  ws.columns = columns.map((c) => ({ key: c.key, width: c.width ?? 16 }));
 
+  // Faixa de título (linha 1)
+  ws.mergeCells(1, 1, 1, n);
+  const t = ws.getCell(1, 1);
+  t.value = title;
+  t.font = { bold: true, size: 14, color: { argb: WHITE } };
+  t.fill = fill(INK);
+  t.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+  ws.getRow(1).height = 26;
+
+  // Cabeçalho (linha 2)
+  columns.forEach((c, i) => {
+    const cell = ws.getCell(2, i + 1);
+    cell.value = c.header;
+    cell.font = { bold: true, size: 10, color: { argb: WHITE } };
+    cell.fill = fill(c.fill ?? HEADER);
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    cell.border = borderAll();
+  });
+  ws.getRow(2).height = 22;
+
+  // Dados (zebra)
+  rows.forEach((r, ri) => {
+    columns.forEach((c, i) => {
+      const cell = ws.getCell(3 + ri, i + 1);
+      const v = r[c.key];
+      cell.value = (v ?? (c.numFmt ? null : "")) as ExcelJSType.CellValue;
+      if (c.numFmt) cell.numFmt = c.numFmt;
+      cell.font = { size: 10, color: { argb: INK } };
+      cell.fill = fill(ri % 2 === 0 ? ZEBRA1 : ZEBRA2);
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: c.align ?? (c.numFmt ? "right" : "left"),
+        indent: c.align === "center" || c.numFmt ? 0 : 1,
+      };
+      cell.border = borderAll();
+    });
+  });
+
+  // Total
   const totalCols = columns.filter((c) => c.total);
   if (totalCols.length && rows.length) {
-    const totalRow: Record<string, unknown> = {};
-    const first = columns[0].key;
-    totalRow[first] = "TOTAL";
-    for (const c of totalCols) {
-      totalRow[c.key] = rows.reduce((s, r) => s + Number(r[c.key] ?? 0), 0);
-    }
-    const added = ws.addRow(totalRow);
-    added.font = { bold: true };
-    added.fill = { type: "pattern", pattern: "solid", fgColor: { argb: TOTAL_FILL } };
+    const idx = 3 + rows.length;
+    columns.forEach((c, i) => {
+      const cell = ws.getCell(idx, i + 1);
+      if (i === 0) cell.value = "TOTAL";
+      else if (c.total) {
+        cell.value = rows.reduce((s, r) => s + Number(r[c.key] ?? 0), 0);
+        if (c.numFmt) cell.numFmt = c.numFmt;
+      }
+      cell.font = { bold: true, size: 10, color: { argb: WHITE } };
+      cell.fill = fill(TEAL);
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: c.numFmt ? "right" : i === 0 ? "left" : "center",
+        indent: i === 0 ? 1 : 0,
+      };
+      cell.border = borderAll();
+    });
   }
   return ws;
 }
@@ -69,6 +132,7 @@ export async function buildReportWorkbook(
   const wb = new ExcelJS.Workbook();
   wb.creator = "Painel Ley Colchões";
   wb.created = new Date();
+  const periodo = `${formatDateBR(dateFrom)} a ${formatDateBR(dateTo)}`;
 
   const factoryLabel = (id: string) => {
     const f = data.factories.find((x) => x.id === id);
@@ -82,7 +146,6 @@ export async function buildReportWorkbook(
     inRange(a.reference_date ?? a.created_at, dateFrom, dateTo),
   );
 
-  // Carteira atual por fábrica (acumulado, todos os registros)
   const carteiraByFactory = new Map<string, number>();
   for (const f of data.factories) {
     const s = data.sales
@@ -97,7 +160,6 @@ export async function buildReportWorkbook(
     carteiraByFactory.set(f.id, s - b + adj);
   }
 
-  // Metas do período (soma dos meses que tocam o intervalo)
   const monthsInRange = new Set<string>();
   {
     const [fy, fm] = dateFrom.split("-").map(Number);
@@ -127,13 +189,36 @@ export async function buildReportWorkbook(
 
   // ---------- Capa ----------
   const cover = wb.addWorksheet("Capa");
-  cover.columns = [{ width: 24 }, { width: 40 }];
-  cover.addRow(["Relatório Ley Colchões"]).font = { bold: true, size: 16 };
+  cover.columns = [{ width: 26 }, { width: 44 }];
+  cover.mergeCells("A1:B1");
+  const cTitle = cover.getCell("A1");
+  cTitle.value = "LEY COLCHÕES · RELATÓRIO";
+  cTitle.font = { bold: true, size: 18, color: { argb: WHITE } };
+  cTitle.fill = fill(INK);
+  cTitle.alignment = { vertical: "middle", horizontal: "center" };
+  cover.getRow(1).height = 40;
   cover.addRow([]);
-  cover.addRow(["Período", `${formatDateBR(dateFrom)} a ${formatDateBR(dateTo)}`]);
-  cover.addRow(["Gerado em", formatDateBR(new Date().toISOString().slice(0, 10))]);
-  cover.addRow(["Exportado por", exporterName]);
-  cover.getColumn(1).font = { bold: true };
+  const info: [string, string][] = [
+    ["Período", periodo],
+    ["Gerado em", formatDateBR(new Date().toISOString().slice(0, 10))],
+    ["Exportado por", exporterName],
+  ];
+  info.forEach(([k, v], i) => {
+    const row = cover.getRow(3 + i);
+    const a = row.getCell(1);
+    const b = row.getCell(2);
+    a.value = k;
+    a.font = { bold: true, size: 11, color: { argb: WHITE } };
+    a.fill = fill(i % 2 === 0 ? BLUE : BLUE_LIGHT);
+    a.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    b.value = v;
+    b.font = { size: 11, color: { argb: INK } };
+    b.fill = fill(i % 2 === 0 ? ZEBRA1 : ZEBRA2);
+    b.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    a.border = borderAll();
+    b.border = borderAll();
+    row.height = 20;
+  });
 
   // ---------- Resumo ----------
   const resumoRows = data.factories.map((f) => {
@@ -144,6 +229,7 @@ export async function buildReportWorkbook(
       .filter((b) => b.factory_id === f.id)
       .reduce((a, b) => a + b.amount_cents, 0);
     const goal = goalFor(f.id);
+    const pctFat = goal.b > 0 ? fat / goal.b : 0;
     return {
       fabrica: `${f.name} · ${f.state}`,
       vendas: reais(vendas),
@@ -151,35 +237,60 @@ export async function buildReportWorkbook(
       pctVendas: goal.s > 0 ? vendas / goal.s : 0,
       faturamento: reais(fat),
       metaFat: reais(goal.b),
-      pctFat: goal.b > 0 ? fat / goal.b : 0,
+      pctFat,
       carteira: reais(carteiraByFactory.get(f.id) ?? 0),
+      status: goal.b <= 0 ? "—" : pctFat >= 1 ? "✅ Meta" : "⏳ Em progresso",
     };
   });
-  addTable(
+  addStyledTable(
     wb,
     "Resumo",
+    `RESUMO EXECUTIVO · ${periodo}`,
     [
-      { header: "Fábrica", key: "fabrica", width: 22 },
-      { header: "Vendas", key: "vendas", width: 16, numFmt: BRL, total: true },
-      { header: "Meta vendas", key: "metaVendas", width: 16, numFmt: BRL, total: true },
-      { header: "% meta vendas", key: "pctVendas", width: 14, numFmt: PCT },
-      { header: "Faturamento", key: "faturamento", width: 16, numFmt: BRL, total: true },
-      { header: "Meta faturamento", key: "metaFat", width: 16, numFmt: BRL, total: true },
-      { header: "% meta fat.", key: "pctFat", width: 14, numFmt: PCT },
-      { header: "Carteira atual", key: "carteira", width: 16, numFmt: BRL, total: true },
+      { header: "Fábrica", key: "fabrica", width: 22, fill: INK, align: "left" },
+      { header: "Vendas", key: "vendas", width: 16, numFmt: BRL, total: true, fill: BLUE },
+      { header: "Meta vendas", key: "metaVendas", width: 16, numFmt: BRL, total: true, fill: NAVY },
+      { header: "% meta vendas", key: "pctVendas", width: 13, numFmt: PCT, fill: BLUE_LIGHT },
+      {
+        header: "Faturamento",
+        key: "faturamento",
+        width: 16,
+        numFmt: BRL,
+        total: true,
+        fill: BLUE,
+      },
+      {
+        header: "Meta faturamento",
+        key: "metaFat",
+        width: 16,
+        numFmt: BRL,
+        total: true,
+        fill: NAVY,
+      },
+      { header: "% meta fat.", key: "pctFat", width: 12, numFmt: PCT, fill: BLUE_LIGHT },
+      {
+        header: "Carteira atual",
+        key: "carteira",
+        width: 16,
+        numFmt: BRL,
+        total: true,
+        fill: TEAL,
+      },
+      { header: "Status", key: "status", width: 16, fill: INK, align: "center" },
     ],
     resumoRows,
   );
 
   // ---------- Vendas ----------
-  addTable(
+  addStyledTable(
     wb,
     "Vendas",
+    `VENDAS · ${periodo}`,
     [
-      { header: "Data", key: "data", width: 12 },
+      { header: "Data", key: "data", width: 12, align: "center" },
       { header: "Fábrica", key: "fabrica", width: 20 },
       { header: "Canal", key: "canal", width: 16 },
-      { header: "Valor", key: "valor", width: 16, numFmt: BRL, total: true },
+      { header: "Valor", key: "valor", width: 16, numFmt: BRL, total: true, fill: BLUE },
       { header: "Observação", key: "obs", width: 30 },
       { header: "Autor", key: "autor", width: 22 },
     ],
@@ -196,13 +307,14 @@ export async function buildReportWorkbook(
   );
 
   // ---------- Faturamento ----------
-  addTable(
+  addStyledTable(
     wb,
     "Faturamento",
+    `FATURAMENTO · ${periodo}`,
     [
-      { header: "Data", key: "data", width: 12 },
+      { header: "Data", key: "data", width: 12, align: "center" },
       { header: "Fábrica", key: "fabrica", width: 20 },
-      { header: "Valor", key: "valor", width: 16, numFmt: BRL, total: true },
+      { header: "Valor", key: "valor", width: 16, numFmt: BRL, total: true, fill: BLUE },
       { header: "Observação", key: "obs", width: 30 },
       { header: "Autor", key: "autor", width: 22 },
     ],
@@ -225,14 +337,15 @@ export async function buildReportWorkbook(
     correcao: "Correção",
     conciliacao: "Conciliação (ERP)",
   };
-  addTable(
+  addStyledTable(
     wb,
     "Carteira (ajustes)",
+    `CARTEIRA — AJUSTES · ${periodo}`,
     [
-      { header: "Data ref.", key: "data", width: 12 },
+      { header: "Data ref.", key: "data", width: 12, align: "center" },
       { header: "Fábrica", key: "fabrica", width: 20 },
       { header: "Tipo", key: "tipo", width: 16 },
-      { header: "Impacto", key: "impacto", width: 16, numFmt: BRL, total: true },
+      { header: "Impacto", key: "impacto", width: 16, numFmt: BRL, total: true, fill: BLUE },
       { header: "Original", key: "original", width: 16, numFmt: BRL },
       { header: "Realizado", key: "realizado", width: 16, numFmt: BRL },
       { header: "Destino", key: "destino", width: 18 },
@@ -255,17 +368,18 @@ export async function buildReportWorkbook(
   // ---------- Repasses ----------
   const repasses = adjIn.filter((a) => a.reason === "repasse");
   if (repasses.length) {
-    addTable(
+    addStyledTable(
       wb,
       "Repasses",
+      `REPASSES · ${periodo}`,
       [
-        { header: "Data ref.", key: "data", width: 12 },
+        { header: "Data ref.", key: "data", width: 12, align: "center" },
         { header: "Fábrica", key: "fabrica", width: 20 },
         { header: "Destino", key: "destino", width: 18 },
-        { header: "Original", key: "original", width: 16, numFmt: BRL, total: true },
-        { header: "Realizado", key: "realizado", width: 16, numFmt: BRL, total: true },
-        { header: "Desconto", key: "desconto", width: 16, numFmt: BRL, total: true },
-        { header: "% desconto", key: "pct", width: 12, numFmt: PCT },
+        { header: "Original", key: "original", width: 16, numFmt: BRL, total: true, fill: BLUE },
+        { header: "Realizado", key: "realizado", width: 16, numFmt: BRL, total: true, fill: BLUE },
+        { header: "Desconto", key: "desconto", width: 16, numFmt: BRL, total: true, fill: TEAL },
+        { header: "% desconto", key: "pct", width: 12, numFmt: PCT, fill: BLUE_LIGHT },
         { header: "Autor", key: "autor", width: 22 },
       ],
       repasses.map((a) => {
@@ -286,15 +400,16 @@ export async function buildReportWorkbook(
   }
 
   // ---------- Metas ----------
-  addTable(
+  addStyledTable(
     wb,
     "Metas",
+    `METAS · ${periodo}`,
     [
       { header: "Fábrica", key: "fabrica", width: 20 },
-      { header: "Ano", key: "ano", width: 8 },
-      { header: "Mês", key: "mes", width: 8 },
-      { header: "Meta faturamento", key: "metaFat", width: 18, numFmt: BRL },
-      { header: "Meta vendas", key: "metaVendas", width: 18, numFmt: BRL },
+      { header: "Ano", key: "ano", width: 8, align: "center" },
+      { header: "Mês", key: "mes", width: 8, align: "center" },
+      { header: "Meta faturamento", key: "metaFat", width: 18, numFmt: BRL, fill: NAVY },
+      { header: "Meta vendas", key: "metaVendas", width: 18, numFmt: BRL, fill: NAVY },
     ],
     data.goals
       .slice()
@@ -308,7 +423,7 @@ export async function buildReportWorkbook(
       })),
   );
 
-  // ---------- Diário (matriz dia a dia) ----------
+  // ---------- Diário ----------
   const days: string[] = [];
   {
     let d = dateFrom;
@@ -319,14 +434,16 @@ export async function buildReportWorkbook(
       d = dt.toISOString().slice(0, 10);
     }
   }
-  const diarioCols: Col[] = [{ header: "Data", key: "data", width: 12 }];
-  for (const f of data.factories) {
+  const diarioCols: Col[] = [{ header: "Data", key: "data", width: 12, align: "center" }];
+  data.factories.forEach((f, i) => {
+    const c = i === 0 ? BLUE : BLUE_LIGHT;
     diarioCols.push({
       header: `${f.name} — Vendas`,
       key: `v_${f.id}`,
       width: 16,
       numFmt: BRL,
       total: true,
+      fill: c,
     });
     diarioCols.push({
       header: `${f.name} — Fat.`,
@@ -334,10 +451,25 @@ export async function buildReportWorkbook(
       width: 16,
       numFmt: BRL,
       total: true,
+      fill: c,
     });
-  }
-  diarioCols.push({ header: "Total Vendas", key: "tv", width: 16, numFmt: BRL, total: true });
-  diarioCols.push({ header: "Total Fat.", key: "tf", width: 16, numFmt: BRL, total: true });
+  });
+  diarioCols.push({
+    header: "Total Vendas",
+    key: "tv",
+    width: 16,
+    numFmt: BRL,
+    total: true,
+    fill: TEAL,
+  });
+  diarioCols.push({
+    header: "Total Fat.",
+    key: "tf",
+    width: 16,
+    numFmt: BRL,
+    total: true,
+    fill: TEAL,
+  });
 
   const diarioRows = days.map((day) => {
     const row: Record<string, unknown> = { data: formatDateBR(day) };
@@ -359,7 +491,7 @@ export async function buildReportWorkbook(
     row.tf = reais(tf);
     return row;
   });
-  addTable(wb, "Diário", diarioCols, diarioRows);
+  addStyledTable(wb, "Diário", `DIÁRIO · ${periodo}`, diarioCols, diarioRows);
 
   const buffer = await wb.xlsx.writeBuffer();
   return new Blob([buffer], {

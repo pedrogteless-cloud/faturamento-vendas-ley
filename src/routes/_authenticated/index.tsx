@@ -2,11 +2,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getSessionContext } from "@/lib/session.functions";
-import { canManageNotifications, canRegisterBilling, canRegisterSales } from "@/lib/permissions";
+import {
+  canAccessAdmin,
+  canManageNotifications,
+  canRegisterBilling,
+  canRegisterSales,
+} from "@/lib/permissions";
 import { Suspense, useEffect, useState } from "react";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { FactoryCard, type FactoryCardData } from "@/components/dashboard/FactoryCard";
 import { DayStatusButton } from "@/components/dashboard/DayStatusButton";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { getDashboard, type DashboardData } from "@/lib/dashboard.functions";
 import { centsToBRL, formatDateTimeBR, labelAction, labelEntity } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
@@ -144,7 +150,8 @@ function DashboardView({
             {monthLabel} · atualizado em {formatDateTimeBR(data.asOf)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canAccessAdmin(session) && <ExportExcelButton exporterName={session?.fullName ?? "—"} />}
           <DayStatusButton data={data} canSend={canManageNotifications(session)} />
           <button
             type="button"

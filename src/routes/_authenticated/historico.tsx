@@ -14,7 +14,7 @@ import {
 } from "@/lib/entries.functions";
 import { listFactories } from "@/lib/factories.functions";
 import { getSessionContext } from "@/lib/session.functions";
-import { canAccessAdmin, canRegisterBilling, canRegisterSales } from "@/lib/permissions";
+import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { centsToBRL, formatDateBR, formatDateTimeBR, getErrorMessage } from "@/lib/format";
 import {
@@ -291,9 +291,7 @@ function HistoryPage() {
           </button>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {canAccessAdmin(sessionQuery.data ?? null) && (
-            <ExportExcelButton exporterName={sessionQuery.data?.fullName ?? "—"} />
-          )}
+          <ExportExcelButton exporterName={sessionQuery.data?.fullName ?? "—"} />
           <button
             type="button"
             onClick={handleExportCSV}

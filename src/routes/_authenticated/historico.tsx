@@ -14,7 +14,8 @@ import {
 } from "@/lib/entries.functions";
 import { listFactories } from "@/lib/factories.functions";
 import { getSessionContext } from "@/lib/session.functions";
-import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
+import { canAccessAdmin, canRegisterBilling, canRegisterSales } from "@/lib/permissions";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { centsToBRL, formatDateBR, formatDateTimeBR, getErrorMessage } from "@/lib/format";
 import {
   AlertDialog,
@@ -289,15 +290,20 @@ function HistoryPage() {
             Limpar filtros
           </button>
         )}
-        <button
-          type="button"
-          onClick={handleExportCSV}
-          disabled={(entriesQuery.data ?? []).length === 0}
-          className="btn-ghost ml-auto inline-flex items-center gap-1.5"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Exportar CSV
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {canAccessAdmin(sessionQuery.data ?? null) && (
+            <ExportExcelButton exporterName={sessionQuery.data?.fullName ?? "—"} />
+          )}
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={(entriesQuery.data ?? []).length === 0}
+            className="btn-ghost inline-flex items-center gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Exportar CSV
+          </button>
+        </div>
       </div>
 
       <p className="mb-2 text-xs text-muted-foreground">

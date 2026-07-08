@@ -187,39 +187,6 @@ export async function buildReportWorkbook(
     return { b, s };
   };
 
-  // ---------- Capa ----------
-  const cover = wb.addWorksheet("Capa");
-  cover.columns = [{ width: 26 }, { width: 44 }];
-  cover.mergeCells("A1:B1");
-  const cTitle = cover.getCell("A1");
-  cTitle.value = "LEY COLCHÕES · RELATÓRIO";
-  cTitle.font = { bold: true, size: 18, color: { argb: WHITE } };
-  cTitle.fill = fill(INK);
-  cTitle.alignment = { vertical: "middle", horizontal: "center" };
-  cover.getRow(1).height = 40;
-  cover.addRow([]);
-  const info: [string, string][] = [
-    ["Período", periodo],
-    ["Gerado em", formatDateBR(new Date().toISOString().slice(0, 10))],
-    ["Exportado por", exporterName],
-  ];
-  info.forEach(([k, v], i) => {
-    const row = cover.getRow(3 + i);
-    const a = row.getCell(1);
-    const b = row.getCell(2);
-    a.value = k;
-    a.font = { bold: true, size: 11, color: { argb: WHITE } };
-    a.fill = fill(i % 2 === 0 ? BLUE : BLUE_LIGHT);
-    a.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    b.value = v;
-    b.font = { size: 11, color: { argb: INK } };
-    b.fill = fill(i % 2 === 0 ? ZEBRA1 : ZEBRA2);
-    b.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    a.border = borderAll();
-    b.border = borderAll();
-    row.height = 20;
-  });
-
   // ---------- Resumo ----------
   const resumoRows = data.factories.map((f) => {
     const vendas = salesIn
@@ -492,6 +459,42 @@ export async function buildReportWorkbook(
     return row;
   });
   addStyledTable(wb, "Diário", `DIÁRIO · ${periodo}`, diarioCols, diarioRows);
+
+  // ---------- Capa (última aba) ----------
+  const cover = wb.addWorksheet("Capa");
+  cover.columns = [{ width: 26 }, { width: 44 }];
+  cover.mergeCells("A1:B1");
+  const cTitle = cover.getCell("A1");
+  cTitle.value = "LEY COLCHÕES · RELATÓRIO";
+  cTitle.font = { bold: true, size: 18, color: { argb: WHITE } };
+  cTitle.fill = fill(INK);
+  cTitle.alignment = { vertical: "middle", horizontal: "center" };
+  cover.getRow(1).height = 40;
+  cover.addRow([]);
+  const info: [string, string][] = [
+    ["Período", periodo],
+    ["Gerado em", formatDateBR(new Date().toISOString().slice(0, 10))],
+    ["Exportado por", exporterName],
+  ];
+  info.forEach(([k, v], i) => {
+    const row = cover.getRow(3 + i);
+    const a = row.getCell(1);
+    const b = row.getCell(2);
+    a.value = k;
+    a.font = { bold: true, size: 11, color: { argb: WHITE } };
+    a.fill = fill(i % 2 === 0 ? BLUE : BLUE_LIGHT);
+    a.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    b.value = v;
+    b.font = { size: 11, color: { argb: INK } };
+    b.fill = fill(i % 2 === 0 ? ZEBRA1 : ZEBRA2);
+    b.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    a.border = borderAll();
+    b.border = borderAll();
+    row.height = 20;
+  });
+
+  // Garante que o Resumo seja a aba ativa ao abrir
+  wb.views = [{ activeTab: 0 }];
 
   const buffer = await wb.xlsx.writeBuffer();
   return new Blob([buffer], {

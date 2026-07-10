@@ -1,3 +1,4 @@
+// sync: força atualização do deploy (Lovable)
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";

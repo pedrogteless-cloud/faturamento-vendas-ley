@@ -2,19 +2,21 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getSessionContext } from "@/lib/session.functions";
-import {
-  canAccessAdmin,
-  canManageNotifications,
-  canRegisterBilling,
-  canRegisterSales,
-} from "@/lib/permissions";
+import { canManageNotifications, canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 import { Suspense, useEffect, useState } from "react";
-import { ArrowRight, RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw, History, CalendarSearch } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { FactoryCard, type FactoryCardData } from "@/components/dashboard/FactoryCard";
 import { DayStatusButton } from "@/components/dashboard/DayStatusButton";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { getDashboard, type DashboardData } from "@/lib/dashboard.functions";
-import { centsToBRL, formatDateTimeBR, labelAction, labelEntity } from "@/lib/format";
+import { centsToBRL, formatDateTimeBR, labelAction, labelEntity, todayISO } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { setDashboardStatus } from "@/lib/dashboard-status";
 
@@ -44,19 +46,21 @@ function DashboardPage() {
 function DashboardContent() {
   const fetchDashboard = useServerFn(getDashboard);
   const queryClient = useQueryClient();
+  const [asOfDate, setAsOfDate] = useState<string | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "failed">(
     "connecting",
   );
   const { data, isFetching, refetch } = useSuspenseQuery({
-    queryKey: ["dashboard"],
-    queryFn: () => fetchDashboard(),
-    refetchInterval: 30_000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
+    queryKey: ["dashboard", asOfDate ?? "live"],
+    queryFn: () => (asOfDate ? fetchDashboard({ data: { asOf: asOfDate } }) : fetchDashboard()),
+    refetchInterval: asOfDate ? false : 30_000,
+    refetchIntervalInBackground: !asOfDate,
+    refetchOnWindowFocus: !asOfDate,
     staleTime: 10_000,
   });
 
   useEffect(() => {
+    if (asOfDate) return; // visão histórica não usa tempo real
     let channel = supabase.channel("ley-dashboard-live");
     for (const table of [
       "sales_entries",
@@ -84,7 +88,7 @@ function DashboardContent() {
       clearTimeout(failTimeout);
       void supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, asOfDate]);
 
   useEffect(() => {
     setDashboardStatus({ asOf: data.asOf, realtime: realtimeStatus });
@@ -99,6 +103,8 @@ function DashboardContent() {
       isRefreshing={isFetching}
       onRefresh={() => void refetch()}
       session={session}
+      asOfDate={asOfDate}
+      onPickDate={setAsOfDate}
     />
   );
 }
@@ -108,14 +114,19 @@ function DashboardView({
   isRefreshing,
   onRefresh,
   session,
+  asOfDate,
+  onPickDate,
 }: {
   data: DashboardData;
   isRefreshing: boolean;
   onRefresh: () => void;
   session: import("@/lib/permissions").SessionContext | null;
+  asOfDate: string | null;
+  onPickDate: (d: string | null) => void;
 }) {
   const canSales = canRegisterSales(session);
   const canBilling = canRegisterBilling(session);
+  const historical = !!data.historical;
 
   const consolidated: FactoryCardData = {
     factoryName: "Total Ley Colchões",
@@ -141,27 +152,55 @@ function DashboardView({
     year: "numeric",
   }).format(new Date(data.asOf));
 
+  const dayLabel = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Fortaleza",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(data.asOf));
+
   return (
     <>
+      {historical && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <History className="h-4 w-4 text-warning" />
+            <span className="font-semibold text-warning">Visão histórica · {dayLabel}</span>
+            <span className="hidden text-muted-foreground sm:inline">
+              — posição da data com os dados atuais (não é uma foto da tela do dia)
+            </span>
+          </div>
+          <button type="button" onClick={() => onPickDate(null)} className="btn-ghost min-h-9">
+            ← Voltar para hoje
+          </button>
+        </div>
+      )}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Visão geral</h2>
+          <h2 className="text-lg font-semibold">{historical ? "Posição do dia" : "Visão geral"}</h2>
           <p className="text-xs text-muted-foreground first-letter:uppercase">
-            {monthLabel} · atualizado em {formatDateTimeBR(data.asOf)}
+            {historical
+              ? `${monthLabel} · posição de ${dayLabel} (dados atuais)`
+              : `${monthLabel} · atualizado em ${formatDateTimeBR(data.asOf)}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canAccessAdmin(session) && <ExportExcelButton exporterName={session?.fullName ?? "—"} />}
-          <DayStatusButton data={data} canSend={canManageNotifications(session)} />
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="btn-ghost min-h-9"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            {isRefreshing ? "Atualizando" : "Atualizar"}
-          </button>
+          <HistoryDateButton current={asOfDate} onPick={onPickDate} />
+          {!historical && (
+            <>
+              <ExportExcelButton exporterName={session?.fullName ?? "—"} />
+              <DayStatusButton data={data} canSend={canManageNotifications(session)} />
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="btn-ghost min-h-9"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                {isRefreshing ? "Atualizando" : "Atualizar"}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -200,9 +239,9 @@ function DashboardView({
                       variant="factory"
                       carteiraCents={f.carteiraCents}
                       factoryId={f.factoryId}
-                      pendingTypes={pendingMap.get(f.factoryId)}
-                      canRegisterSales={canSales}
-                      canRegisterBilling={canBilling}
+                      pendingTypes={historical ? undefined : pendingMap.get(f.factoryId)}
+                      canRegisterSales={!historical && canSales}
+                      canRegisterBilling={!historical && canBilling}
                     />
                   ))}
                 </div>
@@ -211,7 +250,7 @@ function DashboardView({
           </div>
 
           <aside className="space-y-4">
-            {(canSales || canBilling) && (
+            {!historical && (canSales || canBilling) && (
               <Panel title="Pendências de hoje">
                 {data.pendingToday.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Nenhuma pendência. Tudo lançado.</p>
@@ -281,6 +320,74 @@ function DashboardView({
         </div>
       )}
     </>
+  );
+}
+
+function HistoryDateButton({
+  current,
+  onPick,
+}: {
+  current: string | null;
+  onPick: (d: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(current ?? todayISO());
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button type="button" className="btn-ghost min-h-9 inline-flex items-center gap-1.5">
+          <CalendarSearch className="h-3.5 w-3.5" />
+          Ver data
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="h-4 w-4 text-warning" /> Como estava nesta data
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Mostra a <b>posição do dia</b> escolhido reconstruída com os dados atuais — inclui
+          lançamentos e correções feitos depois. Não é uma foto exata da tela daquele dia. É só
+          leitura: nada pode ser alterado.
+        </p>
+        <label className="block space-y-1">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Data</span>
+          <input
+            type="date"
+            className="input-field"
+            value={date}
+            max={todayISO()}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="btn-primary flex-1"
+            onClick={() => {
+              onPick(date >= todayISO() ? null : date);
+              setOpen(false);
+            }}
+          >
+            Ver essa data
+          </button>
+          {current && (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                onPick(null);
+                setOpen(false);
+              }}
+            >
+              Hoje
+            </button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

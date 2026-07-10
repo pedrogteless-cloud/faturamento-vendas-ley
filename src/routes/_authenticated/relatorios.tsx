@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getSessionContext } from "@/lib/session.functions";
-import { canAccessAdmin } from "@/lib/permissions";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
@@ -13,15 +12,6 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
 function ReportsPage() {
   const fetchSession = useServerFn(getSessionContext);
   const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });
-  const isAdmin = canAccessAdmin(sessionQuery.data ?? null);
-
-  if (sessionQuery.data && !isAdmin) {
-    return (
-      <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <p className="text-sm text-muted-foreground">Esta área é restrita a administradores.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">

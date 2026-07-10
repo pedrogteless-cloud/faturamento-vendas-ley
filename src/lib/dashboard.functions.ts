@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type FactorySummary = {
@@ -23,6 +24,8 @@ export type FactorySummary = {
 
 export type DashboardData = {
   asOf: string;
+  historical?: boolean;
+  asOfDate?: string;
   factories: FactorySummary[];
   consolidated: {
     billingTodayCents: number;
@@ -57,9 +60,22 @@ function todayInFortaleza(): string {
 
 export const getDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<DashboardData> => {
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        asOf: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+      })
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }): Promise<DashboardData> => {
     const { supabase } = context;
-    const today = todayInFortaleza();
+    const liveToday = todayInFortaleza();
+    // Visão histórica: "hoje" passa a ser a data escolhida (nunca no futuro).
+    const historical = !!data.asOf && data.asOf < liveToday;
+    const today = historical ? data.asOf! : liveToday;
     const [y, m] = today.split("-").map((n) => parseInt(n, 10));
     const pad = (n: number) => String(n).padStart(2, "0");
     const monthStart = `${y}-${pad(m)}-01`;
@@ -82,12 +98,12 @@ export const getDashboard = createServerFn({ method: "GET" })
         .from("sales_entries")
         .select("factory_id, reference_date, amount_cents")
         .gte("reference_date", monthStart)
-        .lte("reference_date", monthEnd),
+        .lte("reference_date", today),
       supabase
         .from("billing_entries")
         .select("factory_id, reference_date, amount_cents")
         .gte("reference_date", monthStart)
-        .lte("reference_date", monthEnd),
+        .lte("reference_date", today),
       supabase
         .from("goals")
         .select("factory_id, billing_goal_cents, sales_goal_cents")
@@ -104,9 +120,18 @@ export const getDashboard = createServerFn({ method: "GET" })
         .in("entity", ["sales_entries", "billing_entries", "goals", "work_calendar_days"])
         .order("created_at", { ascending: false })
         .limit(10),
-      supabase.from("sales_entries").select("factory_id, amount_cents"),
-      supabase.from("billing_entries").select("factory_id, amount_cents"),
-      supabase.from("carteira_adjustments").select("factory_id, amount_cents"),
+      supabase
+        .from("sales_entries")
+        .select("factory_id, amount_cents")
+        .lte("reference_date", today),
+      supabase
+        .from("billing_entries")
+        .select("factory_id, amount_cents")
+        .lte("reference_date", today),
+      supabase
+        .from("carteira_adjustments")
+        .select("factory_id, amount_cents")
+        .lte("reference_date", today),
     ]);
 
     const queryError =
@@ -308,7 +333,11 @@ export const getDashboard = createServerFn({ method: "GET" })
     });
 
     return {
-      asOf: new Date().toISOString(),
+      // Em visão histórica, asOf reflete a data escolhida (meio-dia Fortaleza)
+      // para que rótulos de mês/período fiquem corretos.
+      asOf: historical ? `${today}T12:00:00-03:00` : new Date().toISOString(),
+      historical,
+      asOfDate: today,
       factories: factorySummaries,
       consolidated,
       pendingToday,

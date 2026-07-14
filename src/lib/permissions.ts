@@ -64,3 +64,6 @@ export function canViewAudit(ctx: SessionContext | null): boolean {
 export function canAccessAdmin(ctx: SessionContext | null): boolean {
   return hasRole(ctx, "admin");
 }
+export function canRegisterReturnedCheckRecovery(ctx: SessionContext | null): boolean {
+  return hasAnyRole(ctx, ["admin", "responsavel_faturamento", "diretoria"]);
+}

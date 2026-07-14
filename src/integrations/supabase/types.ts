@@ -118,6 +118,59 @@ export type Database = {
           },
         ]
       }
+      returned_check_recoveries: {
+        Row: {
+          amount_cents: number
+          check_reference: string | null
+          created_at: string
+          created_by: string
+          customer_name: string | null
+          factory_id: string
+          id: string
+          note: string | null
+          recovered_date: string
+          returned_date: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount_cents: number
+          check_reference?: string | null
+          created_at?: string
+          created_by: string
+          customer_name?: string | null
+          factory_id: string
+          id?: string
+          note?: string | null
+          recovered_date: string
+          returned_date?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          check_reference?: string | null
+          created_at?: string
+          created_by?: string
+          customer_name?: string | null
+          factory_id?: string
+          id?: string
+          note?: string | null
+          recovered_date?: string
+          returned_date?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "returned_check_recoveries_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_goal_overrides: {
         Row: {
           billing_goal_cents: number | null
@@ -590,6 +643,7 @@ export type Database = {
         | "gerente_comercial"
         | "assistente_vendas"
         | "responsavel_faturamento"
+        | "credito_cobranca"
       delivery_status: "pending" | "sent" | "failed"
       entry_type: "sales" | "billing"
     }

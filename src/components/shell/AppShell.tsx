@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   Wifi,
   WifiOff,
+  BarChart2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ import {
   canManageCalendar,
   canManageGoals,
   canRegisterBilling,
+  canRegisterReturnedCheckRecovery,
   canRegisterSales,
   canViewAudit,
   ROLE_LABEL,
@@ -50,7 +52,8 @@ const NAV: NavItem[] = [
     to: "/lancamentos",
     label: "Lançamentos",
     icon: PlusSquare,
-    show: (s) => canRegisterSales(s) || canRegisterBilling(s),
+    show: (s) =>
+      canRegisterSales(s) || canRegisterBilling(s) || canRegisterReturnedCheckRecovery(s),
     primary: true,
   },
   {
@@ -67,6 +70,13 @@ const NAV: NavItem[] = [
     show: () => true,
   },
   { to: "/historico", label: "Histórico", icon: History, show: () => true, primary: true },
+  {
+    to: "/analise-devolvidos",
+    label: "Devolvidos",
+    icon: BarChart2,
+    show: (s) => canAccessAdmin(s) || canRegisterReturnedCheckRecovery(s),
+    primary: true,
+  },
   { to: "/notificacoes", label: "Notificações", icon: Bell, show: () => true, primary: true },
   { to: "/admin", label: "Usuários", icon: Users, show: (s) => canAccessAdmin(s) },
   { to: "/auditoria", label: "Auditoria", icon: ShieldCheck, show: (s) => canViewAudit(s) },

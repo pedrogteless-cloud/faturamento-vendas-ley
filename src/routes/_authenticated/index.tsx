@@ -49,6 +49,7 @@ function DashboardContent() {
     for (const table of [
       "sales_entries",
       "billing_entries",
+      "returned_check_recoveries",
       "goals",
       "work_calendar_days",
       "audit_logs",
@@ -292,6 +293,7 @@ function labelEntity(e: string): string {
     {
       sales_entries: "Vendas",
       billing_entries: "Faturamento",
+      returned_check_recoveries: "Cheque recuperado",
       goals: "Meta",
       work_calendar_days: "Calendário",
     }[e] ?? e

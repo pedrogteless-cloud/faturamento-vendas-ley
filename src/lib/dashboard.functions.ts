@@ -90,7 +90,13 @@ export const getDashboard = createServerFn({ method: "GET" })
         supabase
           .from("audit_logs")
           .select("id, entity, action, actor_email, after, created_at")
-          .in("entity", ["sales_entries", "billing_entries", "goals", "work_calendar_days"])
+          .in("entity", [
+            "sales_entries",
+            "billing_entries",
+            "returned_check_recoveries",
+            "goals",
+            "work_calendar_days",
+          ])
           .order("created_at", { ascending: false })
           .limit(10),
       ]);

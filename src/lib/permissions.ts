@@ -7,7 +7,8 @@ export type AppRole =
   | "diretoria"
   | "gerente_comercial"
   | "assistente_vendas"
-  | "responsavel_faturamento";
+  | "responsavel_faturamento"
+  | "credito_cobranca";
 
 export type AppPermission =
   | "manage_goals"
@@ -31,6 +32,7 @@ export const ROLE_LABEL: Record<AppRole, string> = {
   gerente_comercial: "Gerente comercial",
   assistente_vendas: "Assistente comercial",
   responsavel_faturamento: "Responsável pelo faturamento",
+  credito_cobranca: "Crédito e cobrança",
 };
 
 export function hasRole(ctx: SessionContext | null, role: AppRole): boolean {
@@ -48,6 +50,9 @@ export function canRegisterSales(ctx: SessionContext | null): boolean {
 }
 export function canRegisterBilling(ctx: SessionContext | null): boolean {
   return hasAnyRole(ctx, ["admin", "responsavel_faturamento"]);
+}
+export function canRegisterReturnedCheckRecovery(ctx: SessionContext | null): boolean {
+  return hasAnyRole(ctx, ["admin", "credito_cobranca"]);
 }
 export function canManageGoals(ctx: SessionContext | null): boolean {
   return hasRole(ctx, "admin") || hasPermission(ctx, "manage_goals");

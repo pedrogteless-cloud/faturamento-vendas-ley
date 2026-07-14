@@ -3,7 +3,25 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AppPermission, AppRole } from "./permissions";
 
-async function ensureAdmin(userId: string, supabase: ReturnType<typeof import("@supabase/supabase-js").createClient>) {
+const roleSchema = z.enum([
+  "admin",
+  "diretoria",
+  "gerente_comercial",
+  "assistente_vendas",
+  "responsavel_faturamento",
+  "credito_cobranca",
+]);
+const permissionSchema = z.enum([
+  "manage_goals",
+  "manage_work_calendar",
+  "manage_notifications",
+  "view_audit",
+]);
+
+async function ensureAdmin(
+  userId: string,
+  supabase: ReturnType<typeof import("@supabase/supabase-js").createClient>,
+) {
   const { data, error } = await supabase
     .from("user_roles")
     .select("role")
@@ -60,8 +78,8 @@ export const listUsers = createServerFn({ method: "GET" })
 const createUserSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(2).max(120),
-  roles: z.array(z.enum(["admin", "diretoria", "gerente_comercial", "assistente_vendas", "responsavel_faturamento"])).min(1),
-  permissions: z.array(z.enum(["manage_goals", "manage_work_calendar", "manage_notifications", "view_audit"])).default([]),
+  roles: z.array(roleSchema).min(1),
+  permissions: z.array(permissionSchema).default([]),
   factoryIds: z.array(z.string().uuid()).default([]),
 });
 
@@ -81,9 +99,13 @@ export const createUser = createServerFn({ method: "POST" })
     if (created.error) throw new Error(created.error.message);
     const newUserId = created.data.user!.id;
 
-    await supabaseAdmin
-      .from("profiles")
-      .upsert({ id: newUserId, email: data.email, full_name: data.fullName, is_active: true, must_change_password: true });
+    await supabaseAdmin.from("profiles").upsert({
+      id: newUserId,
+      email: data.email,
+      full_name: data.fullName,
+      is_active: true,
+      must_change_password: true,
+    });
 
     if (data.roles.length > 0) {
       await supabaseAdmin
@@ -109,7 +131,9 @@ export const createUser = createServerFn({ method: "POST" })
 
 export const setUserActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ userId: z.string().uuid(), active: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({ userId: z.string().uuid(), active: z.boolean() }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     await ensureAdmin(context.userId, context.supabase as never);
     if (!data.active && data.userId === context.userId) {
@@ -135,7 +159,10 @@ export const setUserActive = createServerFn({ method: "POST" })
         }
       }
     }
-    const { error } = await supabaseAdmin.from("profiles").update({ is_active: data.active }).eq("id", data.userId);
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ is_active: data.active })
+      .eq("id", data.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -153,27 +180,37 @@ export const sendPasswordReset = createServerFn({ method: "POST" })
 
 export const updateUserAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({
-    userId: z.string().uuid(),
-    roles: z.array(z.enum(["admin", "diretoria", "gerente_comercial", "assistente_vendas", "responsavel_faturamento"])),
-    permissions: z.array(z.enum(["manage_goals", "manage_work_calendar", "manage_notifications", "view_audit"])),
-    factoryIds: z.array(z.string().uuid()),
-  }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        userId: z.string().uuid(),
+        roles: z.array(roleSchema),
+        permissions: z.array(permissionSchema),
+        factoryIds: z.array(z.string().uuid()),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     await ensureAdmin(context.userId, context.supabase as never);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
     if (data.roles.length > 0) {
-      await supabaseAdmin.from("user_roles").insert(data.roles.map((r) => ({ user_id: data.userId, role: r })));
+      await supabaseAdmin
+        .from("user_roles")
+        .insert(data.roles.map((r) => ({ user_id: data.userId, role: r })));
     }
     await supabaseAdmin.from("user_permissions").delete().eq("user_id", data.userId);
     if (data.permissions.length > 0) {
-      await supabaseAdmin.from("user_permissions").insert(data.permissions.map((p) => ({ user_id: data.userId, permission: p })));
+      await supabaseAdmin
+        .from("user_permissions")
+        .insert(data.permissions.map((p) => ({ user_id: data.userId, permission: p })));
     }
     await supabaseAdmin.from("user_factory_access").delete().eq("user_id", data.userId);
     if (data.factoryIds.length > 0) {
-      await supabaseAdmin.from("user_factory_access").insert(data.factoryIds.map((fid) => ({ user_id: data.userId, factory_id: fid })));
+      await supabaseAdmin
+        .from("user_factory_access")
+        .insert(data.factoryIds.map((fid) => ({ user_id: data.userId, factory_id: fid })));
     }
     return { ok: true };
   });

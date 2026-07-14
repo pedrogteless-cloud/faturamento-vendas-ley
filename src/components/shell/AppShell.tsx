@@ -14,7 +14,6 @@ import {
   MoreHorizontal,
   Wallet,
   FileSpreadsheet,
-  BarChart2,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -38,7 +37,6 @@ import {
   canRegisterSales,
   canManageNotifications,
   canViewAudit,
-  canRegisterReturnedCheckRecovery,
   ROLE_LABEL,
 } from "@/lib/permissions";
 
@@ -82,13 +80,6 @@ const NAV: NavItem[] = [
   },
   { to: "/carteira", label: "Carteira", icon: Wallet, show: (s) => canAccessAdmin(s) },
   { to: "/relatorios", label: "Relatórios", icon: FileSpreadsheet, show: () => true },
-  {
-    to: "/analise-devolvidos",
-    label: "Devolvidos",
-    icon: BarChart2,
-    show: (s) => canAccessAdmin(s) || canRegisterReturnedCheckRecovery(s),
-    primary: true,
-  },
   { to: "/admin", label: "Usuários", icon: Users, show: (s) => canAccessAdmin(s) },
   { to: "/auditoria", label: "Auditoria", icon: ShieldCheck, show: (s) => canViewAudit(s) },
 ];

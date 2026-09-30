@@ -1,4 +1,3 @@
-// sync: força atualização do deploy (Lovable)
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,6 +15,7 @@ import {
 import { FactoryCard, type FactoryCardData } from "@/components/dashboard/FactoryCard";
 import { DayStatusButton } from "@/components/dashboard/DayStatusButton";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
+import { TrocasPanel } from "@/components/trocas/TrocasPanel";
 import { getDashboard, type DashboardData } from "@/lib/dashboard.functions";
 import { centsToBRL, formatDateTimeBR, labelAction, labelEntity, todayISO } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
@@ -248,6 +248,7 @@ function DashboardView({
                 </div>
               );
             })()}
+            <TrocasPanel date={data.asOfDate ?? todayISO()} />
           </div>
 
           <aside className="space-y-4">

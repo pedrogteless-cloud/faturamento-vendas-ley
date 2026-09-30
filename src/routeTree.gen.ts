@@ -19,6 +19,7 @@ import { Route as AuthenticatedLancamentosRouteImport } from './routes/_authenti
 import { Route as AuthenticatedHistoricoRouteImport } from './routes/_authenticated/historico'
 import { Route as AuthenticatedCarteiraRouteImport } from './routes/_authenticated/carteira'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedTrocasRouteImport } from './routes/_authenticated/trocas'
 import { Route as AuthenticatedCalendarioRouteImport } from './routes/_authenticated/calendario'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -80,6 +81,12 @@ const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   path: '/relatorios',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+
+const AuthenticatedTrocasRoute = AuthenticatedTrocasRouteImport.update({
+  id: '/trocas',
+  path: '/trocas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCalendarioRoute = AuthenticatedCalendarioRouteImport.update({
   id: '/calendario',
   path: '/calendario',
@@ -135,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/carteira': typeof AuthenticatedCarteiraRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/trocas': typeof AuthenticatedTrocasRoute
   '/historico': typeof AuthenticatedHistoricoRoute
   '/lancamentos': typeof AuthenticatedLancamentosRoute
   '/metas': typeof AuthenticatedMetasRoute
@@ -153,6 +161,7 @@ export interface FileRoutesByTo {
   '/calendario': typeof AuthenticatedCalendarioRoute
   '/carteira': typeof AuthenticatedCarteiraRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/trocas': typeof AuthenticatedTrocasRoute
   '/historico': typeof AuthenticatedHistoricoRoute
   '/lancamentos': typeof AuthenticatedLancamentosRoute
   '/metas': typeof AuthenticatedMetasRoute
@@ -174,6 +183,7 @@ export interface FileRoutesById {
   '/_authenticated/calendario': typeof AuthenticatedCalendarioRoute
   '/_authenticated/carteira': typeof AuthenticatedCarteiraRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/trocas': typeof AuthenticatedTrocasRoute
   '/_authenticated/historico': typeof AuthenticatedHistoricoRoute
   '/_authenticated/lancamentos': typeof AuthenticatedLancamentosRoute
   '/_authenticated/metas': typeof AuthenticatedMetasRoute
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/carteira'
     | '/relatorios'
+    | '/trocas'
     | '/historico'
     | '/lancamentos'
     | '/metas'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/carteira'
     | '/relatorios'
+    | '/trocas'
     | '/historico'
     | '/lancamentos'
     | '/metas'
@@ -234,6 +246,7 @@ export interface FileRouteTypes {
     | '/_authenticated/calendario'
     | '/_authenticated/carteira'
     | '/_authenticated/relatorios'
+    | '/_authenticated/trocas'
     | '/_authenticated/historico'
     | '/_authenticated/lancamentos'
     | '/_authenticated/metas'
@@ -327,6 +340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/trocas': {
+      id: '/_authenticated/trocas'
+      path: '/trocas'
+      fullPath: '/trocas'
+      preLoaderRoute: typeof AuthenticatedTrocasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/calendario': {
       id: '/_authenticated/calendario'
       path: '/calendario'
@@ -392,6 +412,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarioRoute: typeof AuthenticatedCalendarioRoute
   AuthenticatedCarteiraRoute: typeof AuthenticatedCarteiraRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedTrocasRoute: typeof AuthenticatedTrocasRoute
   AuthenticatedHistoricoRoute: typeof AuthenticatedHistoricoRoute
   AuthenticatedLancamentosRoute: typeof AuthenticatedLancamentosRoute
   AuthenticatedMetasRoute: typeof AuthenticatedMetasRoute
@@ -405,6 +426,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalendarioRoute: AuthenticatedCalendarioRoute,
   AuthenticatedCarteiraRoute: AuthenticatedCarteiraRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedTrocasRoute: AuthenticatedTrocasRoute,
   AuthenticatedHistoricoRoute: AuthenticatedHistoricoRoute,
   AuthenticatedLancamentosRoute: AuthenticatedLancamentosRoute,
   AuthenticatedMetasRoute: AuthenticatedMetasRoute,

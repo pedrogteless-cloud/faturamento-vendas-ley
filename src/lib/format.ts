@@ -124,6 +124,7 @@ export function labelEntity(entity: string): string {
     {
       sales_entries: "Vendas",
       billing_entries: "Faturamento",
+      production_exchanges: "Trocas na produção",
       goals: "Meta",
       work_calendar_days: "Calendário",
       user_roles: "Função de usuário",

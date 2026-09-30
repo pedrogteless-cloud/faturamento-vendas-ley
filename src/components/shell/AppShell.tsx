@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   Wallet,
   FileSpreadsheet,
+  RefreshCcw,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -79,6 +80,7 @@ const NAV: NavItem[] = [
     primary: true,
   },
   { to: "/carteira", label: "Carteira", icon: Wallet, show: (s) => canAccessAdmin(s) },
+  { to: "/trocas", label: "Trocas", icon: RefreshCcw, show: () => true },
   { to: "/relatorios", label: "Relatórios", icon: FileSpreadsheet, show: () => true },
   { to: "/admin", label: "Usuários", icon: Users, show: (s) => canAccessAdmin(s) },
   { to: "/auditoria", label: "Auditoria", icon: ShieldCheck, show: (s) => canViewAudit(s) },

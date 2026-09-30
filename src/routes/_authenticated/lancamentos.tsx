@@ -28,6 +28,7 @@ import { Trash2 } from "lucide-react";
 import { getSessionContext } from "@/lib/session.functions";
 import { centsToBRL, formatDateBR, getErrorMessage, todayISO } from "@/lib/format";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
+import { TrocasEntry } from "@/components/trocas/trocas-ui";
 
 const searchSchema = z.object({
   factoryId: z.string().optional(),
@@ -174,108 +175,113 @@ function EntriesPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="rounded-2xl border border-border-subtle bg-surface p-5">
-          <h2 className="mb-4 text-sm font-semibold">
-            Novo lançamento de {type === "sales" ? "vendas" : "faturamento"}
-          </h2>
-          {sessionQuery.isLoading ? (
-            <div className="h-48 animate-pulse rounded-xl bg-muted/40" />
-          ) : !canSubmit ? (
-            <p className="text-xs text-muted-foreground">
-              Você não tem permissão para lançar {type === "sales" ? "vendas" : "faturamento"}.
-            </p>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                mutation.mutate();
-              }}
-              className="space-y-3"
-            >
-              <Field label="Fábrica">
-                {singleFactory ? (
-                  <div className="input-field flex items-center text-sm">
-                    {singleFactory.name} · {singleFactory.state}
-                  </div>
-                ) : (
-                  <select
-                    className="input-field"
-                    value={factoryId}
-                    onChange={(e) => setFactoryId(e.target.value)}
-                    required
-                  >
-                    <option value="">Selecione…</option>
-                    {accessibleFactories.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name} · {f.state}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </Field>
-              {type === "sales" && (
-                <Field label="Canal de venda">
-                  <select
-                    className="input-field"
-                    value={channel}
-                    onChange={(e) => setChannel(e.target.value as SalesChannel)}
-                    required
-                  >
-                    {SALES_CHANNELS.map((c) => (
-                      <option key={c} value={c}>
-                        {CHANNEL_LABEL[c]}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-              <Field label="Data">
-                <input
-                  type="date"
-                  className="input-field"
-                  value={date}
-                  max={todayISO()}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Valor (R$)">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="0,00"
-                  className="input-field tabular"
-                  value={formatAmountMask(amountCents)}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "");
-                    setAmountCents(digits ? parseInt(digits, 10) : 0);
-                  }}
-                />
-                <span className="text-[11px] text-muted-foreground">
-                  Deixe em branco para registrar 0 (dia sem{" "}
-                  {type === "sales" ? "vendas" : "faturamento"}).
-                </span>
-              </Field>
-              <Field label="Observação">
-                <input
-                  type="text"
-                  className="input-field"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="opcional"
-                  maxLength={200}
-                />
-              </Field>
-              <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                Se já existir um lançamento para esta fábrica e data, ele será atualizado e
-                auditado.
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-border-subtle bg-surface p-5">
+            <h2 className="mb-4 text-sm font-semibold">
+              Novo lançamento de {type === "sales" ? "vendas" : "faturamento"}
+            </h2>
+            {sessionQuery.isLoading ? (
+              <div className="h-48 animate-pulse rounded-xl bg-muted/40" />
+            ) : !canSubmit ? (
+              <p className="text-xs text-muted-foreground">
+                Você não tem permissão para lançar {type === "sales" ? "vendas" : "faturamento"}.
               </p>
-              <button type="submit" disabled={mutation.isPending} className="btn-primary w-full">
-                {mutation.isPending ? "Salvando…" : "Salvar"}
-              </button>
-            </form>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  mutation.mutate();
+                }}
+                className="space-y-3"
+              >
+                <Field label="Fábrica">
+                  {singleFactory ? (
+                    <div className="input-field flex items-center text-sm">
+                      {singleFactory.name} · {singleFactory.state}
+                    </div>
+                  ) : (
+                    <select
+                      className="input-field"
+                      value={factoryId}
+                      onChange={(e) => setFactoryId(e.target.value)}
+                      required
+                    >
+                      <option value="">Selecione…</option>
+                      {accessibleFactories.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name} · {f.state}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+                {type === "sales" && (
+                  <Field label="Canal de venda">
+                    <select
+                      className="input-field"
+                      value={channel}
+                      onChange={(e) => setChannel(e.target.value as SalesChannel)}
+                      required
+                    >
+                      {SALES_CHANNELS.map((c) => (
+                        <option key={c} value={c}>
+                          {CHANNEL_LABEL[c]}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+                <Field label="Data">
+                  <input
+                    type="date"
+                    className="input-field"
+                    value={date}
+                    max={todayISO()}
+                    onChange={(e) => setDate(e.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Valor (R$)">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0,00"
+                    className="input-field tabular"
+                    value={formatAmountMask(amountCents)}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      setAmountCents(digits ? parseInt(digits, 10) : 0);
+                    }}
+                  />
+                  <span className="text-[11px] text-muted-foreground">
+                    Deixe em branco para registrar 0 (dia sem{" "}
+                    {type === "sales" ? "vendas" : "faturamento"}).
+                  </span>
+                </Field>
+                <Field label="Observação">
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="opcional"
+                    maxLength={200}
+                  />
+                </Field>
+                <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  Se já existir um lançamento para esta fábrica e data, ele será atualizado e
+                  auditado.
+                </p>
+                <button type="submit" disabled={mutation.isPending} className="btn-primary w-full">
+                  {mutation.isPending ? "Salvando…" : "Salvar"}
+                </button>
+              </form>
+            )}
+          </section>
+          {type === "billing" && (
+            <TrocasEntry factoryId={factoryId} date={date} canEdit={canBilling} />
           )}
-        </section>
+        </div>
 
         <section className="rounded-2xl border border-border-subtle bg-surface">
           <header className="border-b border-border-subtle px-5 py-3 text-sm font-semibold">

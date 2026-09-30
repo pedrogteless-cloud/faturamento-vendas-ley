@@ -494,7 +494,17 @@ export async function buildReportWorkbook(
   });
 
   // Garante que o Resumo seja a aba ativa ao abrir
-  wb.views = [{ activeTab: 0 }];
+  wb.views = [
+    {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      firstSheet: 0,
+      activeTab: 0,
+      visibility: "visible",
+    },
+  ];
 
   const buffer = await wb.xlsx.writeBuffer();
   return new Blob([buffer], {

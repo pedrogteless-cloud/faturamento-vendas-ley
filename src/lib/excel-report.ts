@@ -1,6 +1,16 @@
 import type ExcelJSType from "exceljs";
 import type { ReportData } from "@/lib/reports.functions";
 import { formatDateBR } from "@/lib/format";
+import {
+  STATUS_LABEL,
+  consolidatedDays,
+  dayShare,
+  statusFor,
+  summarize,
+  weekly,
+  type TrocasDay,
+  type TrocasStatus,
+} from "@/lib/trocas-calc";
 
 // Paleta azul (inspirada no modelo aprovado).
 const INK = "FF0A1628"; // navy quase preto — títulos/texto
@@ -459,6 +469,208 @@ export async function buildReportWorkbook(
     return row;
   });
   addStyledTable(wb, "Diário", `DIÁRIO · ${periodo}`, diarioCols, diarioRows);
+
+  // ---------- Trocas na produção (NÃO é faturamento) ----------
+  // Abas separadas: trocas nunca entram nos totais de faturamento/vendas acima.
+  if (data.trocas.length) {
+    const thr = data.trocasThresholds;
+    const trocasIn = data.trocas.filter((t) => inRange(t.reference_date, dateFrom, dateTo));
+    const unitLabel = (code: string, name: string) =>
+      code === "eusebio" ? `Matriz · ${name}` : code === "timon" ? `Filial · ${name}` : name;
+
+    const byFactory = data.factories.map((f) => {
+      const days = new Map<string, TrocasDay>();
+      for (const b of billingIn) {
+        if (b.factory_id !== f.id) continue;
+        const cur = days.get(b.reference_date) ?? {
+          date: b.reference_date,
+          billingCents: 0,
+          trocasCents: null,
+        };
+        cur.billingCents += Number(b.amount_cents);
+        days.set(b.reference_date, cur);
+      }
+      for (const t of trocasIn) {
+        if (t.factory_id !== f.id) continue;
+        const cur = days.get(t.reference_date) ?? {
+          date: t.reference_date,
+          billingCents: 0,
+          trocasCents: null,
+        };
+        cur.trocasCents = t.amount_cents;
+        days.set(t.reference_date, cur);
+      }
+      return {
+        label: unitLabel(f.code, f.name),
+        days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)),
+      };
+    });
+    const units = [
+      ...byFactory,
+      {
+        label: "Consolidado (dias com as duas)",
+        days: consolidatedDays(byFactory.map((u) => u.days)),
+      },
+    ];
+
+    const STATUS_ARGB: Record<TrocasStatus, string> = {
+      normal: "FF16A34A",
+      atencao: "FFD97706",
+      critico: "FFDC2626",
+      sem_info: "FF6B7280",
+    };
+    const colorStatus = (
+      ws: ExcelJSType.Worksheet,
+      key: string,
+      rows: { status: TrocasStatus }[],
+    ) => {
+      const col = ws.getColumn(key).number;
+      rows.forEach((r, i) => {
+        const cell = ws.getCell(3 + i, col);
+        cell.font = { bold: true, size: 10, color: { argb: STATUS_ARGB[r.status] } };
+      });
+    };
+    const ORANGE = "FFEA580C";
+    const aviso = "NÃO é faturamento · NÃO gera contas a receber";
+
+    // Resumo
+    const resumo = units.map((u) => {
+      const sm = summarize(u.days, thr);
+      const st = statusFor(sm.weightedShare, thr);
+      return {
+        unidade: u.label,
+        trocas: reais(sm.trocasCents),
+        producao: reais(sm.productionCents),
+        pct: sm.weightedShare ?? "",
+        situacao: STATUS_LABEL[st],
+        status: st,
+        media: sm.simpleAvgShare ?? "",
+        pior: sm.worst
+          ? `${formatDateBR(sm.worst.date)} (${(sm.worst.share * 100).toFixed(1).replace(".", ",")}%)`
+          : "—",
+        normal: sm.counts.normal,
+        atencao: sm.counts.atencao,
+        critico: sm.counts.critico,
+        semInfo: sm.missingDays,
+        pctCritico: sm.criticalDaysShare ?? "",
+      };
+    });
+    const wsR = addStyledTable(
+      wb,
+      "Trocas (resumo)",
+      `TROCAS NA PRODUÇÃO · ${periodo} · ${aviso}`,
+      [
+        { header: "Unidade", key: "unidade", width: 30, fill: ORANGE },
+        { header: "Trocas", key: "trocas", width: 16, numFmt: BRL, fill: ORANGE },
+        {
+          header: "Produção total (fat. + trocas)",
+          key: "producao",
+          width: 20,
+          numFmt: BRL,
+          fill: NAVY,
+        },
+        { header: "% acumulado (ponderado)", key: "pct", width: 14, numFmt: PCT, fill: ORANGE },
+        { header: "Situação", key: "situacao", width: 14, fill: INK, align: "center" },
+        { header: "Média simples dos %", key: "media", width: 13, numFmt: PCT, fill: BLUE_LIGHT },
+        { header: "Pior dia", key: "pior", width: 20, fill: INK, align: "center" },
+        { header: "Dias Normal", key: "normal", width: 10, fill: INK, align: "center" },
+        { header: "Dias Atenção", key: "atencao", width: 10, fill: INK, align: "center" },
+        { header: "Dias Crítico", key: "critico", width: 10, fill: INK, align: "center" },
+        { header: "Sem informação", key: "semInfo", width: 12, fill: INK, align: "center" },
+        { header: "% dias em Crítico", key: "pctCritico", width: 12, numFmt: PCT, fill: INK },
+      ],
+      resumo,
+    );
+    colorStatus(wsR, "situacao", resumo);
+    const noteRow = 4 + resumo.length;
+    wsR.mergeCells(noteRow, 1, noteRow, 12);
+    const note = wsR.getCell(noteRow, 1);
+    note.value =
+      `Trocas = produtos fabricados para trocas e assistências de itens já vendidos. Consomem matéria-prima, mão de obra e máquina, mas não viram contas a receber. ` +
+      `% = trocas ÷ (faturamento + trocas). Faixas: Normal < ${thr.atencao}% · Atenção ${thr.atencao}–${thr.critico}% · Crítico ≥ ${thr.critico}%. ` +
+      `Dias sem informação ficam fora do cálculo. Consolidado considera só os dias em que as duas unidades informaram.`;
+    note.font = { italic: true, size: 9, color: { argb: "FF6B7280" } };
+    note.alignment = { wrapText: true, vertical: "top" };
+    wsR.getRow(noteRow).height = 42;
+
+    // Diário
+    const diario = byFactory.flatMap((u) =>
+      u.days.map((d) => {
+        const share = dayShare(d.billingCents, d.trocasCents);
+        const st = statusFor(share, thr);
+        return {
+          data: formatDateBR(d.date),
+          unidade: u.label,
+          faturamento: reais(d.billingCents),
+          trocas: d.trocasCents == null ? "sem informação" : reais(d.trocasCents),
+          producao: d.trocasCents == null ? "" : reais(d.billingCents + d.trocasCents),
+          pct: share ?? "",
+          situacao: STATUS_LABEL[st],
+          status: st,
+        };
+      }),
+    );
+    const wsD = addStyledTable(
+      wb,
+      "Trocas (diário)",
+      `TROCAS NA PRODUÇÃO — DIÁRIO · ${periodo} · ${aviso}`,
+      [
+        { header: "Data", key: "data", width: 12, align: "center" },
+        { header: "Unidade", key: "unidade", width: 22 },
+        {
+          header: "Faturamento (gera a receber)",
+          key: "faturamento",
+          width: 18,
+          numFmt: BRL,
+          fill: BLUE,
+        },
+        {
+          header: "Trocas (não gera)",
+          key: "trocas",
+          width: 16,
+          numFmt: BRL,
+          fill: ORANGE,
+          align: "right",
+        },
+        { header: "Produção total", key: "producao", width: 16, numFmt: BRL, fill: NAVY },
+        { header: "% trocas", key: "pct", width: 11, numFmt: PCT, fill: ORANGE },
+        { header: "Situação", key: "situacao", width: 14, fill: INK, align: "center" },
+      ],
+      diario,
+    );
+    colorStatus(wsD, "situacao", diario);
+
+    // Semanal
+    const semanal = byFactory.flatMap((u) =>
+      weekly(u.days, thr).map((w) => {
+        const st = statusFor(w.summary.weightedShare, thr);
+        return {
+          semana: formatDateBR(w.week),
+          unidade: u.label,
+          trocas: reais(w.summary.trocasCents),
+          producao: reais(w.summary.productionCents),
+          pct: w.summary.weightedShare ?? "",
+          situacao: STATUS_LABEL[st],
+          status: st,
+        };
+      }),
+    );
+    const wsS = addStyledTable(
+      wb,
+      "Trocas (semanal)",
+      `TROCAS NA PRODUÇÃO — SEMANAL (SEG–SEX) · ${periodo}`,
+      [
+        { header: "Semana de", key: "semana", width: 12, align: "center" },
+        { header: "Unidade", key: "unidade", width: 22 },
+        { header: "Trocas", key: "trocas", width: 16, numFmt: BRL, fill: ORANGE },
+        { header: "Produção total", key: "producao", width: 16, numFmt: BRL, fill: NAVY },
+        { header: "% ponderado", key: "pct", width: 12, numFmt: PCT, fill: ORANGE },
+        { header: "Situação", key: "situacao", width: 14, fill: INK, align: "center" },
+      ],
+      semanal,
+    );
+    colorStatus(wsS, "situacao", semanal);
+  }
 
   // ---------- Capa (última aba) ----------
   const cover = wb.addWorksheet("Capa");

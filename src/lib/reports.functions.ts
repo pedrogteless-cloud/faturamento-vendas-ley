@@ -41,6 +41,9 @@ export type ReportData = {
   billing: ReportEntry[];
   adjustments: ReportAdjustment[];
   users: { id: string; name: string }[];
+  /** Trocas na produção (tabela própria; NULL = não informado). */
+  trocas: { factory_id: string; reference_date: string; amount_cents: number | null }[];
+  trocasThresholds: { atencao: number; critico: number };
 };
 
 const HIGH_LIMIT = 50000;
@@ -57,27 +60,34 @@ export const getReportData = createServerFn({ method: "GET" })
   )
   .handler(async ({ context }): Promise<ReportData> => {
     const { supabase } = context;
-    const [factoriesRes, goalsRes, salesRes, billingRes, adjRes, profilesRes] = await Promise.all([
-      supabase.from("factories").select("id, name, state, code").order("name"),
-      supabase
-        .from("goals")
-        .select("factory_id, year, month, billing_goal_cents, sales_goal_cents"),
-      supabase
-        .from("sales_entries")
-        .select("reference_date, factory_id, amount_cents, note, channel, created_by, created_at")
-        .limit(HIGH_LIMIT),
-      supabase
-        .from("billing_entries")
-        .select("reference_date, factory_id, amount_cents, note, created_by, created_at")
-        .limit(HIGH_LIMIT),
-      supabase
-        .from("carteira_adjustments")
-        .select(
-          "factory_id, amount_cents, reason, reference_date, note, original_cents, realized_cents, destination, created_by, created_at",
-        )
-        .limit(HIGH_LIMIT),
-      supabase.from("profiles").select("id, full_name, email"),
-    ]);
+    const [factoriesRes, goalsRes, salesRes, billingRes, adjRes, profilesRes, trocasRes, thrRes] =
+      await Promise.all([
+        supabase.from("factories").select("id, name, state, code").order("name"),
+        supabase
+          .from("goals")
+          .select("factory_id, year, month, billing_goal_cents, sales_goal_cents"),
+        supabase
+          .from("sales_entries")
+          .select("reference_date, factory_id, amount_cents, note, channel, created_by, created_at")
+          .limit(HIGH_LIMIT),
+        supabase
+          .from("billing_entries")
+          .select("reference_date, factory_id, amount_cents, note, created_by, created_at")
+          .limit(HIGH_LIMIT),
+        supabase
+          .from("carteira_adjustments")
+          .select(
+            "factory_id, amount_cents, reason, reference_date, note, original_cents, realized_cents, destination, created_by, created_at",
+          )
+          .limit(HIGH_LIMIT),
+        supabase.from("profiles").select("id, full_name, email"),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela fora dos tipos antigos
+        (supabase as any)
+          .from("production_exchanges")
+          .select("factory_id, reference_date, amount_cents")
+          .limit(HIGH_LIMIT),
+        supabase.from("app_settings").select("value").eq("key", "trocas_thresholds").maybeSingle(),
+      ]);
 
     const err =
       factoriesRes.error ??
@@ -86,6 +96,8 @@ export const getReportData = createServerFn({ method: "GET" })
       billingRes.error ??
       profilesRes.error;
     if (err) throw new Error(err.message);
+
+    const thr = (thrRes.data?.value ?? {}) as { atencao?: number; critico?: number };
 
     return {
       factories: (factoriesRes.data ?? []) as ReportData["factories"],
@@ -100,5 +112,13 @@ export const getReportData = createServerFn({ method: "GET" })
           name: p.full_name || p.email || "—",
         }),
       ),
+      // Resiliente: se a tabela de trocas não existir, o relatório sai sem as abas de trocas.
+      trocas: trocasRes.error
+        ? []
+        : ((trocasRes.data ?? []) as ReportData["trocas"]).map((t) => ({
+            ...t,
+            amount_cents: t.amount_cents == null ? null : Number(t.amount_cents),
+          })),
+      trocasThresholds: { atencao: Number(thr.atencao ?? 5), critico: Number(thr.critico ?? 10) },
     };
   });

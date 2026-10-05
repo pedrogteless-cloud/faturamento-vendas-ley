@@ -109,6 +109,15 @@ export const sendDailySummaryNow = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const sendDailyTableNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- função fora dos tipos gerados
+    const { error } = await (context.supabase as any).rpc("send_daily_table");
+    if (error) throw new Error(`Falha ao enviar tabela: ${error.message}`);
+    return { ok: true };
+  });
+
 export const sendTestMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ destinationId: z.string().uuid() }).parse(d))

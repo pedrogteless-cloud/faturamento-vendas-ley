@@ -8,6 +8,7 @@ import {
   deleteDestination,
   listNotifications,
   sendDailySummaryNow,
+  sendDailyTableNow,
   sendTestMessage,
   setRuleDestination,
   toggleRule,
@@ -58,6 +59,7 @@ function NotificationsPage() {
   const submitSetRuleDestination = useServerFn(setRuleDestination);
   const submitTest = useServerFn(sendTestMessage);
   const submitDailySummary = useServerFn(sendDailySummaryNow);
+  const submitDailyTable = useServerFn(sendDailyTableNow);
   const qc = useQueryClient();
 
   const sessionQuery = useQuery({ queryKey: ["session-context"], queryFn: () => fetchSession() });
@@ -95,6 +97,12 @@ function NotificationsPage() {
   const summaryMutation = useMutation({
     mutationFn: () => submitDailySummary(),
     onSuccess: () => toast.success("Resumo enviado."),
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const tableMutation = useMutation({
+    mutationFn: () => submitDailyTable(),
+    onSuccess: () => toast.success("Tabela enviada."),
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
@@ -203,6 +211,17 @@ function NotificationsPage() {
                         onClick={() => summaryMutation.mutate()}
                       >
                         {summaryMutation.isPending ? "Enviando…" : "Enviar resumo agora"}
+                      </button>
+                    )}
+                    {r.name === "tabela_diaria" && (
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        disabled={tableMutation.isPending || !r.destination_id}
+                        title={!r.destination_id ? "Vincule um destino primeiro" : undefined}
+                        onClick={() => tableMutation.mutate()}
+                      >
+                        {tableMutation.isPending ? "Enviando…" : "Enviar tabela agora"}
                       </button>
                     )}
                   </div>

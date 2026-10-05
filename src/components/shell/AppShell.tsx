@@ -15,6 +15,7 @@ import {
   Wallet,
   FileSpreadsheet,
   RefreshCcw,
+  BarChart3,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -81,6 +82,7 @@ const NAV: NavItem[] = [
   },
   { to: "/carteira", label: "Carteira", icon: Wallet, show: (s) => canAccessAdmin(s) },
   { to: "/trocas", label: "Trocas", icon: RefreshCcw, show: () => true },
+  { to: "/insights", label: "Insights", icon: BarChart3, show: () => true },
   { to: "/relatorios", label: "Relatórios", icon: FileSpreadsheet, show: () => true },
   { to: "/admin", label: "Usuários", icon: Users, show: (s) => canAccessAdmin(s) },
   { to: "/auditoria", label: "Auditoria", icon: ShieldCheck, show: (s) => canViewAudit(s) },

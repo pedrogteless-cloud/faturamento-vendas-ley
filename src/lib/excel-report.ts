@@ -33,6 +33,8 @@ type Col = {
   width?: number;
   numFmt?: string;
   total?: boolean;
+  /** Total customizado (ex.: soma só dos dias informados, % ponderado). */
+  totalFn?: (rows: Record<string, unknown>[]) => unknown;
   fill?: string; // cor do cabeçalho
   align?: "left" | "center" | "right";
 };
@@ -109,13 +111,16 @@ function addStyledTable(
   });
 
   // Total
-  const totalCols = columns.filter((c) => c.total);
+  const totalCols = columns.filter((c) => c.total || c.totalFn);
   if (totalCols.length && rows.length) {
     const idx = 3 + rows.length;
     columns.forEach((c, i) => {
       const cell = ws.getCell(idx, i + 1);
       if (i === 0) cell.value = "TOTAL";
-      else if (c.total) {
+      else if (c.totalFn) {
+        cell.value = c.totalFn(rows) as ExcelJSType.CellValue;
+        if (c.numFmt) cell.numFmt = c.numFmt;
+      } else if (c.total) {
         cell.value = rows.reduce((s, r) => s + Number(r[c.key] ?? 0), 0);
         if (c.numFmt) cell.numFmt = c.numFmt;
       }
@@ -197,8 +202,76 @@ export async function buildReportWorkbook(
     return { b, s };
   };
 
+  // ---------- Trocas na produção: dados base (NÃO é faturamento) ----------
+  const thr = data.trocasThresholds;
+  const trocasIn = data.trocas.filter((t) => inRange(t.reference_date, dateFrom, dateTo));
+  const unitLabel = (code: string, name: string) =>
+    code === "eusebio" ? `Matriz · ${name}` : code === "timon" ? `Filial · ${name}` : name;
+
+  const byFactory = data.factories.map((f) => {
+    const days = new Map<string, TrocasDay>();
+    for (const b of billingIn) {
+      if (b.factory_id !== f.id) continue;
+      const cur = days.get(b.reference_date) ?? {
+        date: b.reference_date,
+        billingCents: 0,
+        trocasCents: null,
+      };
+      cur.billingCents += Number(b.amount_cents);
+      days.set(b.reference_date, cur);
+    }
+    for (const t of trocasIn) {
+      if (t.factory_id !== f.id) continue;
+      const cur = days.get(t.reference_date) ?? {
+        date: t.reference_date,
+        billingCents: 0,
+        trocasCents: null,
+      };
+      cur.trocasCents = t.amount_cents;
+      days.set(t.reference_date, cur);
+    }
+    return {
+      label: unitLabel(f.code, f.name),
+      days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    };
+  });
+  const units = [
+    ...byFactory,
+    {
+      label: "Consolidado (dias com as duas)",
+      days: consolidatedDays(byFactory.map((u) => u.days)),
+    },
+  ];
+
+  const STATUS_ARGB: Record<TrocasStatus, string> = {
+    normal: "FF16A34A",
+    atencao: "FFD97706",
+    critico: "FFDC2626",
+    sem_info: "FF6B7280",
+  };
+  const colorStatus = (
+    ws: ExcelJSType.Worksheet,
+    key: string,
+    rows: { status: TrocasStatus }[],
+  ) => {
+    const col = ws.getColumn(key).number;
+    rows.forEach((r, i) => {
+      const cell = ws.getCell(3 + i, col);
+      cell.font = { bold: true, size: 10, color: { argb: STATUS_ARGB[r.status] } };
+    });
+  };
+  const ORANGE = "FFEA580C";
+  const aviso = "NÃO é faturamento · NÃO gera contas a receber";
+  const MISSING = "sem informação";
+
   // ---------- Resumo ----------
-  const resumoRows = data.factories.map((f) => {
+  const trocasTotal = summarize(
+    byFactory.flatMap((u) => u.days),
+    thr,
+  );
+  const resumoRows = data.factories.map((f, fi) => {
+    const smT = summarize(byFactory[fi].days, thr);
+    const stT = statusFor(smT.weightedShare, thr);
     const vendas = salesIn
       .filter((s) => s.factory_id === f.id)
       .reduce((a, s) => a + s.amount_cents, 0);
@@ -217,9 +290,14 @@ export async function buildReportWorkbook(
       pctFat,
       carteira: reais(carteiraByFactory.get(f.id) ?? 0),
       status: goal.b <= 0 ? "—" : pctFat >= 1 ? "✅ Meta" : "⏳ Em progresso",
+      // Trocas: NÃO entram em faturamento/vendas/carteira. Sem informação ≠ zero.
+      trocas: smT.informedDays ? reais(smT.trocasCents) : MISSING,
+      pctTrocas: smT.weightedShare ?? MISSING,
+      sitTrocas: STATUS_LABEL[stT],
+      statusTrocas: stT,
     };
   });
-  addStyledTable(
+  const wsResumo = addStyledTable(
     wb,
     "Resumo",
     `RESUMO EXECUTIVO · ${periodo}`,
@@ -254,9 +332,55 @@ export async function buildReportWorkbook(
         fill: TEAL,
       },
       { header: "Status", key: "status", width: 16, fill: INK, align: "center" },
+      {
+        header: "Trocas (não é fat.)",
+        key: "trocas",
+        width: 18,
+        numFmt: BRL,
+        fill: ORANGE,
+        totalFn: () => (trocasTotal.informedDays ? reais(trocasTotal.trocasCents) : MISSING),
+      },
+      {
+        header: "% trocas (ponderado)",
+        key: "pctTrocas",
+        width: 14,
+        numFmt: PCT,
+        fill: ORANGE,
+        totalFn: () => trocasTotal.weightedShare ?? MISSING,
+      },
+      {
+        header: "Situação trocas",
+        key: "sitTrocas",
+        width: 16,
+        fill: INK,
+        align: "center",
+        totalFn: () => STATUS_LABEL[statusFor(trocasTotal.weightedShare, thr)],
+      },
     ],
     resumoRows,
   );
+  colorStatus(
+    wsResumo,
+    "sitTrocas",
+    resumoRows.map((r) => ({ status: r.statusTrocas })),
+  );
+  colorStatus(
+    wsResumo,
+    "pctTrocas",
+    resumoRows.map((r) => ({ status: r.statusTrocas })),
+  );
+  {
+    const nr = 3 + resumoRows.length + 2;
+    wsResumo.mergeCells(nr, 1, nr, 12);
+    const c = wsResumo.getCell(nr, 1);
+    c.value =
+      `Trocas na produção NÃO entram em faturamento, vendas, metas nem carteira. ` +
+      `Total de trocas = soma dos dias informados; dias sem informação ficam fora (não são zero). ` +
+      `% = trocas ÷ (faturamento + trocas). Detalhe dia a dia nas colunas finais da aba Diário e nas abas "Trocas".`;
+    c.font = { italic: true, size: 9, color: { argb: "FF6B7280" } };
+    c.alignment = { wrapText: true, vertical: "top" };
+    wsResumo.getRow(nr).height = 40;
+  }
 
   // ---------- Vendas ----------
   addStyledTable(
@@ -448,6 +572,30 @@ export async function buildReportWorkbook(
     fill: TEAL,
   });
 
+  // Trocas por dia (informadas no período). NÃO entram em "Total Fat." nem em "Total Vendas".
+  const trocasKey = new Map<string, number | null>();
+  for (const t of trocasIn) trocasKey.set(`${t.factory_id}|${t.reference_date}`, t.amount_cents);
+  data.factories.forEach((f, fi) => {
+    const sm = summarize(byFactory[fi].days, thr);
+    diarioCols.push({
+      header: `${f.name} — Trocas (não é fat.)`,
+      key: `t_${f.id}`,
+      width: 18,
+      numFmt: BRL,
+      fill: ORANGE,
+      totalFn: () => (sm.informedDays ? reais(sm.trocasCents) : MISSING),
+    });
+    diarioCols.push({
+      header: `${f.name} — % trocas`,
+      key: `p_${f.id}`,
+      width: 13,
+      numFmt: PCT,
+      fill: ORANGE,
+      totalFn: () => sm.weightedShare ?? MISSING,
+    });
+  });
+  const diarioStatus = new Map<string, { status: TrocasStatus }[]>();
+
   const diarioRows = days.map((day) => {
     const row: Record<string, unknown> = { data: formatDateBR(day) };
     let tv = 0;
@@ -463,85 +611,35 @@ export async function buildReportWorkbook(
       row[`f_${f.id}`] = reais(b);
       tv += v;
       tf += b;
+      const tr = trocasKey.get(`${f.id}|${day}`) ?? null;
+      const share = dayShare(b, tr);
+      row[`t_${f.id}`] = tr == null ? MISSING : reais(tr);
+      row[`p_${f.id}`] = share ?? MISSING;
+      const st = { status: statusFor(share, thr) };
+      diarioStatus.set(f.id, [...(diarioStatus.get(f.id) ?? []), st]);
     }
     row.tv = reais(tv);
     row.tf = reais(tf);
     return row;
   });
-  addStyledTable(wb, "Diário", `DIÁRIO · ${periodo}`, diarioCols, diarioRows);
+  const wsDiario = addStyledTable(wb, "Diário", `DIÁRIO · ${periodo}`, diarioCols, diarioRows);
+  for (const f of data.factories) {
+    colorStatus(wsDiario, `t_${f.id}`, diarioStatus.get(f.id) ?? []);
+    colorStatus(wsDiario, `p_${f.id}`, diarioStatus.get(f.id) ?? []);
+  }
 
   // ---------- Trocas na produção (NÃO é faturamento) ----------
   // Abas separadas: trocas nunca entram nos totais de faturamento/vendas acima.
-  if (data.trocas.length) {
-    const thr = data.trocasThresholds;
-    const trocasIn = data.trocas.filter((t) => inRange(t.reference_date, dateFrom, dateTo));
-    const unitLabel = (code: string, name: string) =>
-      code === "eusebio" ? `Matriz · ${name}` : code === "timon" ? `Filial · ${name}` : name;
-
-    const byFactory = data.factories.map((f) => {
-      const days = new Map<string, TrocasDay>();
-      for (const b of billingIn) {
-        if (b.factory_id !== f.id) continue;
-        const cur = days.get(b.reference_date) ?? {
-          date: b.reference_date,
-          billingCents: 0,
-          trocasCents: null,
-        };
-        cur.billingCents += Number(b.amount_cents);
-        days.set(b.reference_date, cur);
-      }
-      for (const t of trocasIn) {
-        if (t.factory_id !== f.id) continue;
-        const cur = days.get(t.reference_date) ?? {
-          date: t.reference_date,
-          billingCents: 0,
-          trocasCents: null,
-        };
-        cur.trocasCents = t.amount_cents;
-        days.set(t.reference_date, cur);
-      }
-      return {
-        label: unitLabel(f.code, f.name),
-        days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)),
-      };
-    });
-    const units = [
-      ...byFactory,
-      {
-        label: "Consolidado (dias com as duas)",
-        days: consolidatedDays(byFactory.map((u) => u.days)),
-      },
-    ];
-
-    const STATUS_ARGB: Record<TrocasStatus, string> = {
-      normal: "FF16A34A",
-      atencao: "FFD97706",
-      critico: "FFDC2626",
-      sem_info: "FF6B7280",
-    };
-    const colorStatus = (
-      ws: ExcelJSType.Worksheet,
-      key: string,
-      rows: { status: TrocasStatus }[],
-    ) => {
-      const col = ws.getColumn(key).number;
-      rows.forEach((r, i) => {
-        const cell = ws.getCell(3 + i, col);
-        cell.font = { bold: true, size: 10, color: { argb: STATUS_ARGB[r.status] } };
-      });
-    };
-    const ORANGE = "FFEA580C";
-    const aviso = "NÃO é faturamento · NÃO gera contas a receber";
-
+  {
     // Resumo
     const resumo = units.map((u) => {
       const sm = summarize(u.days, thr);
       const st = statusFor(sm.weightedShare, thr);
       return {
         unidade: u.label,
-        trocas: reais(sm.trocasCents),
-        producao: reais(sm.productionCents),
-        pct: sm.weightedShare ?? "",
+        trocas: sm.informedDays ? reais(sm.trocasCents) : MISSING,
+        producao: sm.informedDays ? reais(sm.productionCents) : MISSING,
+        pct: sm.weightedShare ?? MISSING,
         situacao: STATUS_LABEL[st],
         status: st,
         media: sm.simpleAvgShare ?? "",
@@ -602,7 +700,7 @@ export async function buildReportWorkbook(
           data: formatDateBR(d.date),
           unidade: u.label,
           faturamento: reais(d.billingCents),
-          trocas: d.trocasCents == null ? "sem informação" : reais(d.trocasCents),
+          trocas: d.trocasCents == null ? MISSING : reais(d.trocasCents),
           producao: d.trocasCents == null ? "" : reais(d.billingCents + d.trocasCents),
           pct: share ?? "",
           situacao: STATUS_LABEL[st],
@@ -647,9 +745,9 @@ export async function buildReportWorkbook(
         return {
           semana: formatDateBR(w.week),
           unidade: u.label,
-          trocas: reais(w.summary.trocasCents),
-          producao: reais(w.summary.productionCents),
-          pct: w.summary.weightedShare ?? "",
+          trocas: w.summary.informedDays ? reais(w.summary.trocasCents) : MISSING,
+          producao: w.summary.informedDays ? reais(w.summary.productionCents) : MISSING,
+          pct: w.summary.weightedShare ?? MISSING,
           situacao: STATUS_LABEL[st],
           status: st,
         };

@@ -29,6 +29,7 @@ import { getSessionContext } from "@/lib/session.functions";
 import { centsToBRL, formatDateBR, getErrorMessage, todayISO } from "@/lib/format";
 import { canRegisterBilling, canRegisterSales } from "@/lib/permissions";
 import { TrocasEntry } from "@/components/trocas/trocas-ui";
+import { UnitsEntry } from "@/components/units/UnitsEntry";
 
 const searchSchema = z.object({
   factoryId: z.string().optional(),
@@ -278,6 +279,9 @@ function EntriesPage() {
               </form>
             )}
           </section>
+          {type === "billing" && (
+            <UnitsEntry factoryId={factoryId} date={date} canEdit={canBilling} />
+          )}
           {type === "billing" && (
             <TrocasEntry factoryId={factoryId} date={date} canEdit={canBilling} />
           )}

@@ -1,6 +1,7 @@
 import type ExcelJSType from "exceljs";
 import type { ReportData } from "@/lib/reports.functions";
 import { formatDateBR } from "@/lib/format";
+import { UNIT_KINDS, billedOf, producedOf, ticketMedioCents, totalUnits } from "@/lib/units-calc";
 import {
   STATUS_LABEL,
   consolidatedDays,
@@ -768,6 +769,143 @@ export async function buildReportWorkbook(
       semanal,
     );
     colorStatus(wsS, "situacao", semanal);
+  }
+
+  // ---------- Unidades (faturadas e produzidas) e ticket médio ----------
+  // Só entram os dias com unidades lançadas; dias sem lançamento não aparecem.
+  {
+    const billKey = new Map<string, number>();
+    for (const b of billingIn) {
+      const k = `${b.factory_id}|${b.reference_date}`;
+      billKey.set(k, (billKey.get(k) ?? 0) + Number(b.amount_cents));
+    }
+    const facIndex = (id: string) => data.factories.findIndex((f) => f.id === id);
+    const unitRows = data.units
+      .filter((u) => inRange(u.reference_date, dateFrom, dateTo))
+      .slice()
+      .sort(
+        (a, b) =>
+          a.reference_date.localeCompare(b.reference_date) ||
+          facIndex(a.factory_id) - facIndex(b.factory_id),
+      );
+
+    const rows = unitRows.map((u) => {
+      const f = data.factories.find((x) => x.id === u.factory_id);
+      const billingCents = billKey.get(`${u.factory_id}|${u.reference_date}`) ?? 0;
+      const b = billedOf(u);
+      const p = producedOf(u);
+      const bt = totalUnits(b);
+      const pt = totalUnits(p);
+      const ticket = ticketMedioCents(billingCents, bt);
+      const row: Record<string, unknown> = {
+        data: formatDateBR(u.reference_date),
+        unidade: f ? unitLabel(f.code, f.name) : "—",
+        fat: reais(billingCents),
+        bt: bt ?? MISSING,
+        ticket: ticket == null ? MISSING : reais(ticket),
+        pt: pt ?? MISSING,
+        razao: bt != null && bt > 0 && pt != null ? pt / bt : MISSING,
+        _billingCents: billingCents,
+        _bt: bt,
+        _pt: pt,
+      };
+      for (const k of UNIT_KINDS) {
+        row[`b_${k}`] = b[k] ?? "";
+        row[`p_${k}`] = p[k] ?? "";
+      }
+      return row;
+    });
+
+    const sumNum = (key: string) =>
+      rows.reduce((acc, r) => acc + (typeof r[key] === "number" ? (r[key] as number) : 0), 0);
+    const bothRows = rows.filter((r) => r._bt != null && (r._bt as number) > 0 && r._pt != null);
+    const billedSum = rows.reduce((a, r) => a + ((r._bt as number | null) ?? 0), 0);
+    const billingOfBilled = rows
+      .filter((r) => r._bt != null && (r._bt as number) > 0)
+      .reduce((a, r) => a + (r._billingCents as number), 0);
+    const unitsCol = (header: string, key: string, fillColor: string): Col => ({
+      header,
+      key,
+      width: 11,
+      numFmt: "#,##0",
+      fill: fillColor,
+      totalFn: () => sumNum(key),
+    });
+
+    const wsU = addStyledTable(
+      wb,
+      "Unidades",
+      `UNIDADES FATURADAS E PRODUZIDAS · ${periodo}`,
+      [
+        { header: "Data", key: "data", width: 12, align: "center" },
+        { header: "Unidade", key: "unidade", width: 22 },
+        {
+          header: "Faturamento do dia",
+          key: "fat",
+          width: 16,
+          numFmt: BRL,
+          fill: BLUE,
+          totalFn: () => reais(rows.reduce((a, r) => a + (r._billingCents as number), 0)),
+        },
+        unitsCol("Fat.: colchões", "b_colchoes", BLUE_LIGHT),
+        unitsCol("Fat.: bases", "b_bases", BLUE_LIGHT),
+        unitsCol("Fat.: unibox", "b_unibox", BLUE_LIGHT),
+        unitsCol("Fat.: outros", "b_outros", BLUE_LIGHT),
+        {
+          header: "Unid. faturadas",
+          key: "bt",
+          width: 12,
+          numFmt: "#,##0",
+          fill: BLUE,
+          totalFn: () => billedSum,
+        },
+        {
+          header: "Ticket médio (R$/unid.)",
+          key: "ticket",
+          width: 16,
+          numFmt: BRL,
+          fill: TEAL,
+          totalFn: () => (billedSum > 0 ? reais(billingOfBilled) / billedSum : MISSING),
+        },
+        unitsCol("Prod.: colchões", "p_colchoes", BLUE_LIGHT),
+        unitsCol("Prod.: bases", "p_bases", BLUE_LIGHT),
+        unitsCol("Prod.: unibox", "p_unibox", BLUE_LIGHT),
+        unitsCol("Prod.: outros", "p_outros", BLUE_LIGHT),
+        {
+          header: "Unid. produzidas",
+          key: "pt",
+          width: 12,
+          numFmt: "#,##0",
+          fill: NAVY,
+          totalFn: () => sumNum("pt"),
+        },
+        {
+          header: "Produzidas ÷ faturadas",
+          key: "razao",
+          width: 13,
+          numFmt: "0.00",
+          fill: NAVY,
+          totalFn: () => {
+            const b = bothRows.reduce((a, r) => a + (r._bt as number), 0);
+            const p = bothRows.reduce((a, r) => a + (r._pt as number), 0);
+            return b > 0 ? p / b : MISSING;
+          },
+        },
+      ],
+      rows,
+    );
+    const noteRow = rows.length ? 5 + rows.length : 3;
+    wsU.mergeCells(noteRow, 1, noteRow, 16);
+    const noteU = wsU.getCell(noteRow, 1);
+    noteU.value = rows.length
+      ? "Ticket médio = faturamento do dia ÷ unidades faturadas. O total pondera pelos dias lançados. " +
+        "Só aparecem os dias com unidades lançadas; campo vazio = não informado. " +
+        "Outros inclui Dandan e demais peças."
+      : "Nenhuma unidade lançada no período. As unidades faturadas e produzidas passam a ser lançadas " +
+        "na tela de lançamento de faturamento (Unidades do dia).";
+    noteU.font = { italic: true, size: 9, color: { argb: "FF6B7280" } };
+    noteU.alignment = { wrapText: true, vertical: "top" };
+    wsU.getRow(noteRow).height = 32;
   }
 
   // ---------- Capa (última aba) ----------

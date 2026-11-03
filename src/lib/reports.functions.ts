@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { UNIT_COLUMNS, type UnitsRow } from "@/lib/units-calc";
 
 // Dados brutos para montar o relatório Excel. A construção da planilha (abas,
 // formatação) acontece no cliente. Restrito a admin via lógica + RLS.
@@ -44,6 +45,8 @@ export type ReportData = {
   /** Trocas na produção (tabela própria; NULL = não informado). */
   trocas: { factory_id: string; reference_date: string; amount_cents: number | null }[];
   trocasThresholds: { atencao: number; critico: number };
+  /** Unidades faturadas/produzidas por dia (tabela daily_units; NULL = não informado). */
+  units: UnitsRow[];
 };
 
 const HIGH_LIMIT = 50000;
@@ -60,34 +63,45 @@ export const getReportData = createServerFn({ method: "GET" })
   )
   .handler(async ({ context }): Promise<ReportData> => {
     const { supabase } = context;
-    const [factoriesRes, goalsRes, salesRes, billingRes, adjRes, profilesRes, trocasRes, thrRes] =
-      await Promise.all([
-        supabase.from("factories").select("id, name, state, code").order("name"),
-        supabase
-          .from("goals")
-          .select("factory_id, year, month, billing_goal_cents, sales_goal_cents"),
-        supabase
-          .from("sales_entries")
-          .select("reference_date, factory_id, amount_cents, note, channel, created_by, created_at")
-          .limit(HIGH_LIMIT),
-        supabase
-          .from("billing_entries")
-          .select("reference_date, factory_id, amount_cents, note, created_by, created_at")
-          .limit(HIGH_LIMIT),
-        supabase
-          .from("carteira_adjustments")
-          .select(
-            "factory_id, amount_cents, reason, reference_date, note, original_cents, realized_cents, destination, created_by, created_at",
-          )
-          .limit(HIGH_LIMIT),
-        supabase.from("profiles").select("id, full_name, email"),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela fora dos tipos antigos
-        (supabase as any)
-          .from("production_exchanges")
-          .select("factory_id, reference_date, amount_cents")
-          .limit(HIGH_LIMIT),
-        supabase.from("app_settings").select("value").eq("key", "trocas_thresholds").maybeSingle(),
-      ]);
+    const [
+      factoriesRes,
+      goalsRes,
+      salesRes,
+      billingRes,
+      adjRes,
+      profilesRes,
+      trocasRes,
+      thrRes,
+      unitsRes,
+    ] = await Promise.all([
+      supabase.from("factories").select("id, name, state, code").order("name"),
+      supabase
+        .from("goals")
+        .select("factory_id, year, month, billing_goal_cents, sales_goal_cents"),
+      supabase
+        .from("sales_entries")
+        .select("reference_date, factory_id, amount_cents, note, channel, created_by, created_at")
+        .limit(HIGH_LIMIT),
+      supabase
+        .from("billing_entries")
+        .select("reference_date, factory_id, amount_cents, note, created_by, created_at")
+        .limit(HIGH_LIMIT),
+      supabase
+        .from("carteira_adjustments")
+        .select(
+          "factory_id, amount_cents, reason, reference_date, note, original_cents, realized_cents, destination, created_by, created_at",
+        )
+        .limit(HIGH_LIMIT),
+      supabase.from("profiles").select("id, full_name, email"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela fora dos tipos antigos
+      (supabase as any)
+        .from("production_exchanges")
+        .select("factory_id, reference_date, amount_cents")
+        .limit(HIGH_LIMIT),
+      supabase.from("app_settings").select("value").eq("key", "trocas_thresholds").maybeSingle(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela fora dos tipos antigos
+      (supabase as any).from("daily_units").select(UNIT_COLUMNS).limit(HIGH_LIMIT),
+    ]);
 
     const err =
       factoriesRes.error ??
@@ -120,5 +134,7 @@ export const getReportData = createServerFn({ method: "GET" })
             amount_cents: t.amount_cents == null ? null : Number(t.amount_cents),
           })),
       trocasThresholds: { atencao: Number(thr.atencao ?? 5), critico: Number(thr.critico ?? 10) },
+      // Resiliente: sem a tabela, o relatório sai sem a aba de unidades.
+      units: unitsRes.error ? [] : ((unitsRes.data ?? []) as UnitsRow[]),
     };
   });

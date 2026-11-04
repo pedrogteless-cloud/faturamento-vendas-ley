@@ -24,8 +24,8 @@ function ReportsPage() {
 
       <section className="max-w-lg rounded-2xl border border-border-subtle bg-surface p-6">
         <p className="mb-4 text-sm text-muted-foreground">
-          Gere um Excel formatado com as abas Resumo, Vendas, Faturamento, Carteira, Repasses, Metas
-          e Diário. Escolha o período na janela que abrir.
+          Gere um Excel formatado com as abas Resumo, Vendas, Faturamento, Carteira, Repasses,
+          Metas, Diário e Trocas na produção. Escolha o período na janela que abrir.
         </p>
         <ExportExcelButton exporterName={sessionQuery.data?.fullName ?? "—"} variant="primary" />
       </section>

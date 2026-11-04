@@ -125,7 +125,7 @@ export function ExportExcelButton({
         </button>
 
         <p className="text-[11px] text-muted-foreground">
-          Abas: Resumo, Vendas, Faturamento, Carteira, Repasses, Metas e Diário.
+          Abas: Resumo, Vendas, Faturamento, Carteira, Repasses, Metas, Diário e Trocas.
         </p>
       </DialogContent>
     </Dialog>

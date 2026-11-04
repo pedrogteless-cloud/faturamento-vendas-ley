@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { getReportData, type ReportData } from "@/lib/reports.functions";
 import { centsToBRL, centsToCompact, formatPct, todayISO } from "@/lib/format";
+import { billedOf, pearson, producedOf, totalUnits } from "@/lib/units-calc";
 
 export const Route = createFileRoute("/_authenticated/insights")({
   head: () => ({ meta: [{ title: "Insights — Ley Colchões" }] }),
@@ -490,6 +491,153 @@ function Insights({
           </BarChart>
         </Card>
       </div>
+
+      <UnitsInsights data={data} scope={scope} today={today} />
+    </div>
+  );
+}
+
+function UnitsInsights({
+  data,
+  scope,
+  today,
+}: {
+  data: ReportData;
+  scope: "todas" | "matriz" | "filial";
+  today: string;
+}) {
+  const u = useMemo(() => {
+    const keyOf = new Map(data.factories.map((f) => [f.id, factoryKey(f.code)]));
+    const inScope = (fid: string) => scope === "todas" || keyOf.get(fid) === scope;
+    const bill = new Map<string, number>();
+    for (const b of data.billing) {
+      if (!inScope(b.factory_id)) continue;
+      const k = `${b.factory_id}|${b.reference_date}`;
+      bill.set(k, (bill.get(k) ?? 0) + b.amount_cents);
+    }
+    // Por dia: o faturamento só entra onde as unidades faturadas foram informadas.
+    const byDay = new Map<
+      string,
+      { billed: number; produced: number; billing: number; hasB: boolean; hasP: boolean }
+    >();
+    for (const r of data.units) {
+      if (!inScope(r.factory_id)) continue;
+      const bt = totalUnits(billedOf(r));
+      const pt = totalUnits(producedOf(r));
+      const cur = byDay.get(r.reference_date) ?? {
+        billed: 0,
+        produced: 0,
+        billing: 0,
+        hasB: false,
+        hasP: false,
+      };
+      if (bt != null) {
+        cur.billed += bt;
+        cur.billing += bill.get(`${r.factory_id}|${r.reference_date}`) ?? 0;
+        cur.hasB = true;
+      }
+      if (pt != null) {
+        cur.produced += pt;
+        cur.hasP = true;
+      }
+      byDay.set(r.reference_date, cur);
+    }
+    const days = [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({
+        date,
+        dia: `${date.slice(8, 10)}/${date.slice(5, 7)}`,
+        faturadas: v.hasB ? v.billed : null,
+        produzidas: v.hasP ? v.produced : null,
+        billing: v.billing,
+        ticket: v.hasB && v.billed > 0 ? reais(Math.round(v.billing / v.billed)) : null,
+      }));
+    const monthDays = days.filter((d) => d.date.startsWith(today.slice(0, 7)));
+    const billedSum = monthDays.reduce((s, d) => s + (d.faturadas ?? 0), 0);
+    const producedSum = monthDays.reduce((s, d) => s + (d.produzidas ?? 0), 0);
+    const billingSum = monthDays.reduce((s, d) => s + (d.faturadas != null ? d.billing : 0), 0);
+    const pairs = days.filter((d) => d.produzidas != null && d.ticket != null);
+    const r = pearson(
+      pairs.map((d) => d.produzidas as number),
+      pairs.map((d) => d.ticket as number),
+    );
+    return {
+      days,
+      last: days.slice(-30),
+      billedSum,
+      producedSum,
+      ticket: billedSum > 0 ? billingSum / billedSum : null,
+      monthDays: monthDays.length,
+      r,
+      pairs: pairs.length,
+    };
+  }, [data, scope, today]);
+
+  if (!u.days.length) {
+    return (
+      <section className="rounded-2xl border border-border-subtle bg-surface p-5">
+        <h2 className="text-sm font-semibold">Unidades e ticket médio</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Ainda sem unidades lançadas. Em Lançamentos &gt; Faturamento, a seção "Unidades do dia"
+          registra as peças faturadas e produzidas. Com alguns dias de dados, aparecem aqui o ticket
+          médio diário e a relação com a produção.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile
+          label="Unidades faturadas no mês"
+          value={u.billedSum.toLocaleString("pt-BR")}
+          sub={`${u.monthDays} dias lançados`}
+        />
+        <Tile
+          label="Unidades produzidas no mês"
+          value={u.producedSum.toLocaleString("pt-BR")}
+          sub="dias com produção informada"
+        />
+        <Tile
+          label="Ticket médio do mês"
+          value={u.ticket == null ? "—" : centsToBRL(Math.round(u.ticket))}
+          sub="faturamento ÷ unidades faturadas"
+        />
+        <Tile
+          label="Correlação produção × ticket"
+          value={u.r == null ? "—" : u.r.toFixed(2).replace(".", ",")}
+          sub={u.pairs >= 10 ? `${u.pairs} dias na conta` : `precisa de 10 dias (tem ${u.pairs})`}
+        />
+      </div>
+      <Card
+        title="Unidades por dia e ticket médio"
+        hint="Barras: peças faturadas e produzidas. Linha: ticket médio (R$ por unidade faturada). Últimos 30 dias lançados."
+      >
+        <ComposedChart data={u.last} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid vertical={false} strokeOpacity={0.15} />
+          <XAxis dataKey="dia" {...axis} />
+          <YAxis yAxisId="un" {...axis} width={40} />
+          <YAxis yAxisId="tk" orientation="right" {...axis} width={48} tickFormatter={kfmt} />
+          <Tooltip
+            formatter={(v: number, name: string) =>
+              name === "Ticket médio" ? brlTip(v) : v.toLocaleString("pt-BR")
+            }
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar yAxisId="un" dataKey="faturadas" name="Faturadas" fill={C_MATRIZ} />
+          <Bar yAxisId="un" dataKey="produzidas" name="Produzidas" fill={C_FILIAL} />
+          <Line
+            yAxisId="tk"
+            dataKey="ticket"
+            name="Ticket médio"
+            stroke="#111827"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+            connectNulls
+          />
+        </ComposedChart>
+      </Card>
     </div>
   );
 }
